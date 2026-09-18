@@ -95,12 +95,14 @@ export async function showNimLogs(p: ModelsTreeProvider, item?: TreeItem): Promi
 
 // --- settings / misc -------------------------------------------------------
 
-export async function setNvidiaApiKey(_p: ModelsTreeProvider): Promise<void> {
+export async function setNvidiaApiKey(p: ModelsTreeProvider): Promise<void> {
   await s().secrets.setNvidiaKey()
+  p.refresh()
 }
 
-export async function setNgcApiKey(_p: ModelsTreeProvider): Promise<void> {
+export async function setNgcApiKey(p: ModelsTreeProvider): Promise<void> {
   await s().secrets.setNgcKey()
+  p.refresh()
 }
 
 export function openBuildNvidia(_p: ModelsTreeProvider): Thenable<unknown> {

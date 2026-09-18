@@ -1,4 +1,4 @@
-import { commands, ExtensionContext, TreeItem } from 'vscode'
+import { commands, ExtensionContext, TreeItem, window } from 'vscode'
 
 import ModelsTreeProvider from './modelTreeview'
 import {
@@ -20,8 +20,14 @@ export async function activate(context: ExtensionContext) {
   const rc = commands.registerCommand
 
   const services = initServices(context)
-  const p = await ModelsTreeProvider.createOrGet(services.manager, services.nim)
+  const p = await ModelsTreeProvider.createOrGet(services.manager, services.nim, services.secrets)
   const harness = registerChatHarness(context, p)
+
+  // Bind the activity-bar view to its data provider
+  const d0 = window.createTreeView('vidia.modelsExplorer', {
+    treeDataProvider: p,
+    showCollapseAll: true
+  })
 
   const d1 = rc('vidia.internal.addModel', (sourceArg?: string) => addModel(p, sourceArg))
   const d2 = rc('vidia.ncp.removeModelItem', (item?: TreeItem) => removeModel(p, item))
@@ -36,7 +42,7 @@ export async function activate(context: ExtensionContext) {
   const d10 = rc('vidia.openBuildNvidia', () => openBuildNvidia(p))
   const d11 = rc('vidia.refreshServerStatus', () => p.refreshStatus())
 
-  context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, ...harness)
+  context.subscriptions.push(d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, ...harness)
 }
 
 export function deactivate() {

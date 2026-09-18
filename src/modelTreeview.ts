@@ -2,10 +2,12 @@ import * as vscode from 'vscode'
 import { ManagedModel, ModelSource } from './types'
 import { ModelManager, SOURCE_LABELS } from './modelManager'
 import { NimManager } from './nimManager'
+import type { SecretManager } from './secretManager'
 import { refreshEvents } from './events'
 
-type Node = GroupNode | ModelNode | MessageNode
+type Node = SetupNode | GroupNode | ModelNode | MessageNode
 
+interface SetupNode { kind: 'setup' }
 interface GroupNode { kind: 'group', source: ModelSource, label: string }
 interface ModelNode { kind: 'model', model: ManagedModel }
 interface MessageNode { kind: 'message', label: string }
@@ -16,15 +18,19 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   /** Singleton factory (audio-lab style). */
-  static async createOrGet(manager: ModelManager, nim: NimManager): Promise<ModelsTreeProvider> {
+  static async createOrGet(
+    manager: ModelManager,
+    nim: NimManager,
+    secrets: SecretManager
+  ): Promise<ModelsTreeProvider> {
     if (!ModelsTreeProvider.instance)
-      ModelsTreeProvider.instance = new ModelsTreeProvider(manager, nim)
+      ModelsTreeProvider.instance = new ModelsTreeProvider(manager, nim, secrets)
     return ModelsTreeProvider.instance
   }
-
   private constructor(
 		private readonly manager: ModelManager,
-		private readonly nim: NimManager
+		private readonly nim: NimManager,
+		private readonly secrets: SecretManager
   ) {
     // Any part of the extension can fire refreshEvents.fire() to re-query the tree.
     refreshEvents.onDidRequestRefresh(() => this.refresh())
@@ -36,6 +42,20 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
   refreshStatus(): void { this.refresh() }
 
   getTreeItem(node: Node): vscode.TreeItem {
+    if (node.kind === 'setup') {
+      const item = new vscode.TreeItem('Set your NVIDIA API key to get started',
+        vscode.TreeItemCollapsibleState.None)
+      item.description = 'Click to open build.nvidia.com'
+      item.tooltip = new vscode.MarkdownString(
+        '**No NVIDIA API key found.**\n\nClick to open ' +
+        '[build.nvidia.com](https://build.nvidia.com/explore/discover) and create a free API key (nvapi-…),' +
+        ' then run **VIDIA: Set NVIDIA API Key** to store it.')
+      item.contextValue = 'setup'
+      item.iconPath = new vscode.ThemeIcon('key')
+      // Clicking brings the user to the site where the API key can be created.
+      item.command = { command: 'vidia.openBuildNvidia', title: 'Create API Key on build.nvidia.com' }
+      return item
+    }
     if (node.kind === 'group') {
       const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.Expanded)
       item.contextValue = `group:${node.source}`
@@ -56,15 +76,19 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
     item.contextValue = `model:${m.source}:${m.modelId}`
     item.iconPath = new vscode.ThemeIcon(
       m.source === 'cloud' ? 'cloud' : m.source === 'nim' ? 'server-process' : 'code')
-    item.command = { command: 'vidia.setChatModel', title: 'Use for Chat', arguments: [item] }
+    item.command = { command: 'vidia.ncp.setChatModelItem', title: 'Use for Chat', arguments: [item] }
     return item
   }
 
   async getChildren(element?: Node): Promise<Node[]> {
     if (!element) {
-      return (['cloud', 'nim', 'local'] as ModelSource[]).map(source => ({
+      // Show a top-level setup item while no NVIDIA API key is stored yet.
+      const nodes: Node[] = []
+      if (!await this.secrets.getNvidiaKey())
+        nodes.push({ kind: 'setup' })
+      return nodes.concat((['cloud', 'nim', 'local'] as ModelSource[]).map(source => ({
         kind: 'group', source, label: SOURCE_LABELS[source]
-      } as GroupNode))
+      } as GroupNode)))
     }
     if (element.kind !== 'group')  return []
     const models = this.manager.all().filter(m => m.source === element.source)
