@@ -62,48 +62,48 @@
     ],
     "commands": [
       {
-        "command": "vidia.addModel",
+        "command": "vidia.internal.addModel",
         "title": "Add Model",
         "category": "VIDIA",
         "icon": "$(add)"
       },
       {
-        "command": "vidia.refreshModels",
+        "command": "vidia.refreshServerStatus",
         "title": "Refresh Models",
         "category": "VIDIA",
         "icon": "$(refresh)"
       },
       {
-        "command": "vidia.removeModel",
+        "command": "vidia.ncp.removeModelItem",
         "title": "Remove Model",
         "category": "VIDIA",
         "icon": "$(trash)"
       },
       {
-        "command": "vidia.setChatModel",
+        "command": "vidia.ncp.setChatModelItem",
         "title": "Use for Chat",
         "category": "VIDIA"
       },
       {
-        "command": "vidia.testModel",
+        "command": "vidia.ncp.testModelItem",
         "title": "Test Model",
         "category": "VIDIA",
         "icon": "$(zap)"
       },
       {
-        "command": "vidia.nim.start",
+        "command": "vidia.ncp.startNimItem",
         "title": "Start NIM Container",
         "category": "VIDIA",
         "icon": "$(play)"
       },
       {
-        "command": "vidia.nim.stop",
+        "command": "vidia.ncp.stopNimItem",
         "title": "Stop NIM Container",
         "category": "VIDIA",
         "icon": "$(stop)"
       },
       {
-        "command": "vidia.nim.logs",
+        "command": "vidia.ncp.showNimLogsItem",
         "title": "Show NIM Logs",
         "category": "VIDIA"
       },
@@ -126,71 +126,71 @@
     "menus": {
       "view/title": [
         {
-          "command": "vidia.addModel",
+          "command": "vidia.internal.addModel",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@1"
         },
         {
-          "command": "vidia.refreshModels",
+          "command": "vidia.refreshServerStatus",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@2"
         }
       ],
       "view/item/context": [
         {
-          "command": "vidia.setChatModel",
+          "command": "vidia.ncp.setChatModelItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
           "group": "1_mod@1"
         },
         {
-          "command": "vidia.testModel",
+          "command": "vidia.ncp.testModelItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
           "group": "1_mod@2"
         },
         {
-          "command": "vidia.nim.start",
+          "command": "vidia.ncp.startNimItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
           "group": "2_nim@1"
         },
         {
-          "command": "vidia.nim.stop",
+          "command": "vidia.ncp.stopNimItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
           "group": "2_nim@2"
         },
         {
-          "command": "vidia.nim.logs",
+          "command": "vidia.ncp.showNimLogsItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
           "group": "2_nim@3"
         },
         {
-          "command": "vidia.removeModel",
+          "command": "vidia.ncp.removeModelItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
           "group": "3_del@1"
         }
       ],
       "commandPalette": [
         {
-          "command": "vidia.removeModel",
+          "command": "vidia.ncp.removeModelItem",
           "when": "false"
         },
         {
-          "command": "vidia.setChatModel",
+          "command": "vidia.ncp.setChatModelItem",
           "when": "false"
         },
         {
-          "command": "vidia.nim.start",
+          "command": "vidia.ncp.startNimItem",
           "when": "false"
         },
         {
-          "command": "vidia.nim.stop",
+          "command": "vidia.ncp.stopNimItem",
           "when": "false"
         },
         {
-          "command": "vidia.nim.logs",
+          "command": "vidia.ncp.showNimLogsItem",
           "when": "false"
         },
         {
-          "command": "vidia.testModel",
+          "command": "vidia.ncp.testModelItem",
           "when": "false"
         }
       ]
@@ -261,3 +261,4 @@
     "typescript-eslint": "^8.61.1"
   }
 }
+

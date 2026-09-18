@@ -4,17 +4,25 @@ import { ModelManager, SOURCE_LABELS } from './modelManager'
 import { NimManager } from './nimManager'
 import { refreshEvents } from './events'
 
-type Node = GroupNode | ModelNode | MessageNode;
+type Node = GroupNode | ModelNode | MessageNode
 
 interface GroupNode { kind: 'group', source: ModelSource, label: string }
 interface ModelNode { kind: 'model', model: ManagedModel }
 interface MessageNode { kind: 'message', label: string }
 
-export class ModelsTreeProvider implements vscode.TreeDataProvider<Node> {
+export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node> {
+  private static instance?: ModelsTreeProvider
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<Node | undefined>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
-  constructor(
+  /** Singleton factory (audio-lab style). */
+  static async createOrGet(manager: ModelManager, nim: NimManager): Promise<ModelsTreeProvider> {
+    if (!ModelsTreeProvider.instance)
+      ModelsTreeProvider.instance = new ModelsTreeProvider(manager, nim)
+    return ModelsTreeProvider.instance
+  }
+
+  private constructor(
 		private readonly manager: ModelManager,
 		private readonly nim: NimManager
   ) {
@@ -23,6 +31,9 @@ export class ModelsTreeProvider implements vscode.TreeDataProvider<Node> {
   }
 
   refresh(): void { this._onDidChangeTreeData.fire(undefined) }
+
+  /** Refreshes the server/model status section of the tree. */
+  refreshStatus(): void { this.refresh() }
 
   getTreeItem(node: Node): vscode.TreeItem {
     if (node.kind === 'group') {
