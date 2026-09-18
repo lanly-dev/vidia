@@ -1,23 +1,127 @@
 {
   "name": "vidia",
-  "displayName": "vidia",
-  "description": "",
+  "displayName": "VIDIA — NVIDIA NIM Models",
+  "description": "Manage NVIDIA NIM models from build.nvidia.com in a tree view: use the free cloud endpoint, self-hosted NIM containers, or a local runtime — all integrated into the VS Code AI harness.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.138.0"
   },
   "categories": [
-    "Other"
+    "AI",
+    "Chat"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
-    "commands": [
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "vidia",
+          "title": "VIDIA",
+          "icon": "media/nvidia.svg"
+        }
+      ]
+    },
+    "views": {
+      "vidia": [
+        {
+          "id": "vidia.modelsExplorer",
+          "name": "Models Explorer"
+        }
+      ]
+    },
+    "languageModelChatProviders": [
       {
-        "command": "vidia.helloWorld",
-        "title": "Hello World"
+        "vendor": "vidia",
+        "displayName": "VIDIA"
       }
-    ]
+    ],
+    "chatParticipants": [
+      {
+        "id": "vidia.assistant",
+        "name": "vidia",
+        "description": "Chat with NVIDIA NIM models managed by VIDIA",
+        "isSticky": true,
+        "commands": [
+          { "command": "model", "description": "Pick which managed model to chat with" },
+          { "command": "explain", "description": "Explain the selected code" },
+          { "command": "fix", "description": "Suggest a fix for the selected code" }
+        ]
+      }
+    ],
+    "commands": [
+      { "command": "vidia.addModel", "title": "Add Model", "category": "VIDIA", "icon": "$(add)" },
+      { "command": "vidia.refreshModels", "title": "Refresh Models", "category": "VIDIA", "icon": "$(refresh)" },
+      { "command": "vidia.removeModel", "title": "Remove Model", "category": "VIDIA", "icon": "$(trash)" },
+      { "command": "vidia.setChatModel", "title": "Use for Chat", "category": "VIDIA" },
+      { "command": "vidia.testModel", "title": "Test Model", "category": "VIDIA", "icon": "$(zap)" },
+      { "command": "vidia.nim.start", "title": "Start NIM Container", "category": "VIDIA", "icon": "$(play)" },
+      { "command": "vidia.nim.stop", "title": "Stop NIM Container", "category": "VIDIA", "icon": "$(stop)" },
+      { "command": "vidia.nim.logs", "title": "Show NIM Logs", "category": "VIDIA" },
+      { "command": "vidia.setNvidiaApiKey", "title": "Set NVIDIA API Key", "category": "VIDIA" },
+      { "command": "vidia.setNgcApiKey", "title": "Set NGC API Key", "category": "VIDIA" },
+      { "command": "vidia.openBuildNvidia", "title": "Open build.nvidia.com", "category": "VIDIA" }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "vidia.addModel", "when": "view == vidia.modelsExplorer", "group": "navigation@1" },
+        { "command": "vidia.refreshModels", "when": "view == vidia.modelsExplorer", "group": "navigation@2" }
+      ],
+      "view/item/context": [
+        { "command": "vidia.setChatModel", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/", "group": "1_mod@1" },
+        { "command": "vidia.testModel", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/", "group": "1_mod@2" },
+        { "command": "vidia.nim.start", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/", "group": "2_nim@1" },
+        { "command": "vidia.nim.stop", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/", "group": "2_nim@2" },
+        { "command": "vidia.nim.logs", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/", "group": "2_nim@3" },
+        { "command": "vidia.removeModel", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/", "group": "3_del@1" }
+      ],
+      "commandPalette": [
+        { "command": "vidia.removeModel", "when": "false" },
+        { "command": "vidia.setChatModel", "when": "false" },
+        { "command": "vidia.nim.start", "when": "false" },
+        { "command": "vidia.nim.stop", "when": "false" },
+        { "command": "vidia.nim.logs", "when": "false" },
+        { "command": "vidia.testModel", "when": "false" }
+      ]
+    },
+    "configuration": {
+      "title": "VIDIA",
+      "properties": {
+        "vidia.baseUrl": {
+          "type": "string",
+          "default": "https://integrate.api.nvidia.com/v1",
+          "description": "OpenAI-compatible base URL of the NVIDIA NIM cloud endpoint."
+        },
+        "vidia.chatModel": {
+          "type": "string",
+          "default": "",
+          "description": "Key of the managed model used for chat, e.g. cloud:meta/llama-3.1-8b-instruct."
+        },
+        "vidia.nim.containerRuntime": {
+          "type": "string",
+          "enum": ["auto", "docker", "podman"],
+          "default": "auto",
+          "description": "Container runtime used to launch NIM containers."
+        },
+        "vidia.nim.defaultPort": {
+          "type": "number",
+          "default": 8000,
+          "description": "Default host port published for a NIM container."
+        },
+        "vidia.nim.remoteHost": {
+          "type": "string",
+          "default": "",
+          "description": "Optional remote NIM host (host:port). When set, NIM models run there instead of local containers."
+        },
+        "vidia.localRuntime.port": {
+          "type": "number",
+          "default": 8000,
+          "description": "Default port of the local OpenAI-compatible runtime (lemonade/ollama/NIM)."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -40,9 +144,6 @@
     "npm-run-all": "^4.1.5",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1"
-  },
-  "overrides": {
-    "diff": "^8.0.4",
-    "serialize-javascript": "^7.0.6"
   }
 }
+
