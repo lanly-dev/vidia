@@ -2,6 +2,7 @@ import * as vscode from 'vscode'
 import { ManagedModel, ModelSource } from './types'
 import { ModelManager, SOURCE_LABELS } from './modelManager'
 import { NimManager } from './nimManager'
+import { refreshEvents } from './events'
 
 type Node = GroupNode | ModelNode | MessageNode;
 
@@ -16,7 +17,10 @@ export class ModelsTreeProvider implements vscode.TreeDataProvider<Node> {
   constructor(
 		private readonly manager: ModelManager,
 		private readonly nim: NimManager
-  ) { }
+  ) {
+    // Any part of the extension can fire refreshEvents.fire() to re-query the tree.
+    refreshEvents.onDidRequestRefresh(() => this.refresh())
+  }
 
   refresh(): void { this._onDidChangeTreeData.fire(undefined) }
 
@@ -24,7 +28,8 @@ export class ModelsTreeProvider implements vscode.TreeDataProvider<Node> {
     if (node.kind === 'group') {
       const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.Expanded)
       item.contextValue = `group:${node.source}`
-      item.iconPath = new vscode.ThemeIcon(node.source === 'cloud' ? 'cloud' : node.source === 'nim' ? 'vm-active' : 'desktop-download')
+      item.iconPath = new vscode.ThemeIcon(
+        node.source === 'cloud' ? 'cloud' : node.source === 'nim' ? 'vm-active' : 'desktop-download')
       return item
     }
     if (node.kind === 'message') {

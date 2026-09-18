@@ -1,12 +1,51 @@
 import * as vscode from 'vscode'
 import * as cp from 'child_process'
 import { ManagedModel } from './types'
+import { refreshEvents } from './events'
 
 export class NimManager {
   constructor(
 		private readonly getNgcKey: () => string | undefined | Thenable<string | undefined>,
+		private readonly fromTreeItem: (item?: vscode.TreeItem) => ManagedModel | undefined,
 		private readonly log: (msg: string) => void
   ) { }
+
+  /** User flow: start the container for the selected NIM model with progress UI. */
+  async startWithProgress(item?: vscode.TreeItem): Promise<void> {
+    const m = this.fromTreeItem(item)
+    if (!m) return
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Starting NIM container for ${m.modelId}…`,
+        cancellable: true
+      },
+      async (_p, token) => {
+        try {
+          await this.run(m, token)
+          vscode.window.showInformationMessage(
+            `NIM server for ${m.modelId} is healthy at http://localhost:${m.nimPort ?? 8000}/v1.`)
+        } catch (e) {
+          vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e))
+        }
+      })
+    refreshEvents.fire()
+  }
+
+  /** User flow: stop the container for the selected NIM model. */
+  async stopWithFeedback(item?: vscode.TreeItem): Promise<void> {
+    const m = this.fromTreeItem(item)
+    if (!m) return
+    await this.stop(m)
+    refreshEvents.fire()
+    vscode.window.showInformationMessage(`NIM container for ${m.modelId} stopped.`)
+  }
+
+  /** User flow: stream container logs into the NIM output channel. */
+  async showLogs(item?: vscode.TreeItem, channel?: vscode.OutputChannel): Promise<void> {
+    const m = this.fromTreeItem(item)
+    if (m && channel) await this.logs(m, channel)
+  }
 
   get runtime(): string {
     return vscode.workspace.getConfiguration('vidia.nim').get<string>('containerRuntime', 'auto')
@@ -28,12 +67,17 @@ export class NimManager {
 
   async assertPrerequisites(): Promise<string> {
     const rt = await this.detectRuntime()
-    if (!rt)
-      throw new Error('Docker (or Podman) was not found. Install Docker Desktop to run NIM containers: https://www.docker.com/products/docker-desktop/')
+    if (!rt) {
+      throw new Error(
+        'Docker (or Podman) was not found. Install Docker Desktop to run NIM containers:' +
+        ' https://www.docker.com/products/docker-desktop/')
+    }
 
     const key = await this.getNgcKey()
-    if (!key)
-      throw new Error('No NGC API key configured. Get one at https://org.ngc.nvidia.com/ then run "VIDIA: Set NGC API Key".')
+    if (!key) {
+      throw new Error(
+        'No NGC API key configured. Get one at https://org.ngc.nvidia.com/ then run "VIDIA: Set NGC API Key".')
+    }
 
     return rt
   }
@@ -85,7 +129,9 @@ export class NimManager {
       } catch { /* not up yet */ }
       await new Promise(r => setTimeout(r, 3_000))
     }
-    throw new Error(`NIM server on port ${port} did not become healthy within ${Math.round(timeoutMs / 60000)} minutes. Check container logs (VIDIA: Show NIM Logs).`)
+    throw new Error(
+      `NIM server on port ${port} did not become healthy within ${Math.round(timeoutMs / 60000)} minutes.` +
+      ' Check container logs (VIDIA: Show NIM Logs).')
   }
 
   async stop(model: ManagedModel, quiet = false): Promise<void> {

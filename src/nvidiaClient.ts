@@ -14,7 +14,8 @@ export function friendlyHttpError(status: number, body: string): string {
     return 'Authorization failed. Check your NVIDIA API key (NVIDIA: Set NVIDIA API Key).'
 
   if (status === 429)
-    return 'Rate limit reached on the free NVIDIA endpoint. Wait a moment and retry, or self-host the model via NIM/local runtime.'
+  {return 'Rate limit reached on the free NVIDIA endpoint. Wait a moment and retry,' +
+      ' or self-host the model via NIM/local runtime.'}
 
   if (status >= 500)
     return `NVIDIA server error (${status}). The endpoint may be busy; try again later.`
@@ -62,7 +63,12 @@ export class NvidiaClient {
 	 * Sends a chat request and streams deltas to the callback.
 	 * Works against any OpenAI-compatible endpoint (cloud, NIM container, or local runtime).
 	 */
-  async chatStream(target: ChatTarget, messages: ChatMessage[], callbacks: StreamCallbacks, signal?: AbortSignal): Promise<string> {
+  async chatStream(
+    target: ChatTarget,
+    messages: ChatMessage[],
+    callbacks: StreamCallbacks,
+    signal?: AbortSignal
+  ): Promise<string> {
     const res = await fetch(`${target.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST',
       headers: await this.headers(target.apiKey),
@@ -114,7 +120,6 @@ export class NvidiaClient {
 
   /** Quick non-streaming sanity test of a model. */
   async testModel(target: ChatTarget): Promise<string> {
-    let out = ''
-    return this.chatStream(target, [{ role: 'user', content: 'Reply with exactly: OK' }], { onDelta: t => { out += t } })
+    return this.chatStream(target, [{ role: 'user', content: 'Reply with exactly: OK' }], { onDelta: () => undefined })
   }
 }

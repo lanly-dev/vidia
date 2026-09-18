@@ -14,7 +14,15 @@ export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
     this.onDidChangeLanguageModelChatInformation = changeSignal
   }
 
-  async provideLanguageModelChatInformation(_options: { silent: boolean }, _token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
+  /** Registers the provider under the `vidia` vendor with the chat harness. */
+  register(): vscode.Disposable {
+    return vscode.lm.registerLanguageModelChatProvider('vidia', this)
+  }
+
+  async provideLanguageModelChatInformation(
+    _options: { silent: boolean },
+    _token: vscode.CancellationToken
+  ): Promise<vscode.LanguageModelChatInformation[]> {
     return this.manager.all().map(m => this.toInfo(m))
   }
 
@@ -42,7 +50,8 @@ export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
     token: vscode.CancellationToken
   ): Promise<void> {
     const managed = this.manager.get(model.id)
-    if (!managed)  throw new Error(`Model "${model.id}" is no longer managed by VIDIA. Re-add it in the Models Explorer.`)
+    if (!managed)
+      throw new Error(`Model "${model.id}" is no longer managed by VIDIA. Re-add it in the Models Explorer.`)
     const target = await this.manager.resolveTarget(managed)
     const chatMessages: ChatMessage[] = messages.map(msg => {
       const roleNum = msg.role as unknown as number
@@ -66,7 +75,11 @@ export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
     }
   }
 
-  async provideTokenCount(_model: vscode.LanguageModelChatInformation, text: string | vscode.LanguageModelChatRequestMessage, _token: vscode.CancellationToken): Promise<number> {
+  async provideTokenCount(
+    _model: vscode.LanguageModelChatInformation,
+    text: string | vscode.LanguageModelChatRequestMessage,
+    _token: vscode.CancellationToken
+  ): Promise<number> {
     const value = typeof text === 'string'
       ? text
       : text.content.map(p => p instanceof vscode.LanguageModelTextPart ? p.value : '').join('')
