@@ -45,45 +45,154 @@
         "description": "Chat with NVIDIA NIM models managed by VIDIA",
         "isSticky": true,
         "commands": [
-          { "command": "model", "description": "Pick which managed model to chat with" },
-          { "command": "explain", "description": "Explain the selected code" },
-          { "command": "fix", "description": "Suggest a fix for the selected code" }
+          {
+            "command": "model",
+            "description": "Pick which managed model to chat with"
+          },
+          {
+            "command": "explain",
+            "description": "Explain the selected code"
+          },
+          {
+            "command": "fix",
+            "description": "Suggest a fix for the selected code"
+          }
         ]
       }
     ],
     "commands": [
-      { "command": "vidia.addModel", "title": "Add Model", "category": "VIDIA", "icon": "$(add)" },
-      { "command": "vidia.refreshModels", "title": "Refresh Models", "category": "VIDIA", "icon": "$(refresh)" },
-      { "command": "vidia.removeModel", "title": "Remove Model", "category": "VIDIA", "icon": "$(trash)" },
-      { "command": "vidia.setChatModel", "title": "Use for Chat", "category": "VIDIA" },
-      { "command": "vidia.testModel", "title": "Test Model", "category": "VIDIA", "icon": "$(zap)" },
-      { "command": "vidia.nim.start", "title": "Start NIM Container", "category": "VIDIA", "icon": "$(play)" },
-      { "command": "vidia.nim.stop", "title": "Stop NIM Container", "category": "VIDIA", "icon": "$(stop)" },
-      { "command": "vidia.nim.logs", "title": "Show NIM Logs", "category": "VIDIA" },
-      { "command": "vidia.setNvidiaApiKey", "title": "Set NVIDIA API Key", "category": "VIDIA" },
-      { "command": "vidia.setNgcApiKey", "title": "Set NGC API Key", "category": "VIDIA" },
-      { "command": "vidia.openBuildNvidia", "title": "Open build.nvidia.com", "category": "VIDIA" }
+      {
+        "command": "vidia.addModel",
+        "title": "Add Model",
+        "category": "VIDIA",
+        "icon": "$(add)"
+      },
+      {
+        "command": "vidia.refreshModels",
+        "title": "Refresh Models",
+        "category": "VIDIA",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vidia.removeModel",
+        "title": "Remove Model",
+        "category": "VIDIA",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "vidia.setChatModel",
+        "title": "Use for Chat",
+        "category": "VIDIA"
+      },
+      {
+        "command": "vidia.testModel",
+        "title": "Test Model",
+        "category": "VIDIA",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "vidia.nim.start",
+        "title": "Start NIM Container",
+        "category": "VIDIA",
+        "icon": "$(play)"
+      },
+      {
+        "command": "vidia.nim.stop",
+        "title": "Stop NIM Container",
+        "category": "VIDIA",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "vidia.nim.logs",
+        "title": "Show NIM Logs",
+        "category": "VIDIA"
+      },
+      {
+        "command": "vidia.setNvidiaApiKey",
+        "title": "Set NVIDIA API Key",
+        "category": "VIDIA"
+      },
+      {
+        "command": "vidia.setNgcApiKey",
+        "title": "Set NGC API Key",
+        "category": "VIDIA"
+      },
+      {
+        "command": "vidia.openBuildNvidia",
+        "title": "Open build.nvidia.com",
+        "category": "VIDIA"
+      }
     ],
     "menus": {
       "view/title": [
-        { "command": "vidia.addModel", "when": "view == vidia.modelsExplorer", "group": "navigation@1" },
-        { "command": "vidia.refreshModels", "when": "view == vidia.modelsExplorer", "group": "navigation@2" }
+        {
+          "command": "vidia.addModel",
+          "when": "view == vidia.modelsExplorer",
+          "group": "navigation@1"
+        },
+        {
+          "command": "vidia.refreshModels",
+          "when": "view == vidia.modelsExplorer",
+          "group": "navigation@2"
+        }
       ],
       "view/item/context": [
-        { "command": "vidia.setChatModel", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/", "group": "1_mod@1" },
-        { "command": "vidia.testModel", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/", "group": "1_mod@2" },
-        { "command": "vidia.nim.start", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/", "group": "2_nim@1" },
-        { "command": "vidia.nim.stop", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/", "group": "2_nim@2" },
-        { "command": "vidia.nim.logs", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/", "group": "2_nim@3" },
-        { "command": "vidia.removeModel", "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/", "group": "3_del@1" }
+        {
+          "command": "vidia.setChatModel",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
+          "group": "1_mod@1"
+        },
+        {
+          "command": "vidia.testModel",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
+          "group": "1_mod@2"
+        },
+        {
+          "command": "vidia.nim.start",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
+          "group": "2_nim@1"
+        },
+        {
+          "command": "vidia.nim.stop",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
+          "group": "2_nim@2"
+        },
+        {
+          "command": "vidia.nim.logs",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
+          "group": "2_nim@3"
+        },
+        {
+          "command": "vidia.removeModel",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
+          "group": "3_del@1"
+        }
       ],
       "commandPalette": [
-        { "command": "vidia.removeModel", "when": "false" },
-        { "command": "vidia.setChatModel", "when": "false" },
-        { "command": "vidia.nim.start", "when": "false" },
-        { "command": "vidia.nim.stop", "when": "false" },
-        { "command": "vidia.nim.logs", "when": "false" },
-        { "command": "vidia.testModel", "when": "false" }
+        {
+          "command": "vidia.removeModel",
+          "when": "false"
+        },
+        {
+          "command": "vidia.setChatModel",
+          "when": "false"
+        },
+        {
+          "command": "vidia.nim.start",
+          "when": "false"
+        },
+        {
+          "command": "vidia.nim.stop",
+          "when": "false"
+        },
+        {
+          "command": "vidia.nim.logs",
+          "when": "false"
+        },
+        {
+          "command": "vidia.testModel",
+          "when": "false"
+        }
       ]
     },
     "configuration": {
@@ -101,7 +210,11 @@
         },
         "vidia.nim.containerRuntime": {
           "type": "string",
-          "enum": ["auto", "docker", "podman"],
+          "enum": [
+            "auto",
+            "docker",
+            "podman"
+          ],
           "default": "auto",
           "description": "Container runtime used to launch NIM containers."
         },
@@ -134,9 +247,10 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
-    "lint": "eslint src"
+    "efix": "eslint --fix src eslint.config.mjs esbuild.js"
   },
   "devDependencies": {
+    "@stylistic/eslint-plugin": "^5.10.0",
     "@types/node": "24.x",
     "@types/vscode": "^1.138.0",
     "esbuild": "^0.28.1",
@@ -146,4 +260,3 @@
     "typescript-eslint": "^8.61.1"
   }
 }
-

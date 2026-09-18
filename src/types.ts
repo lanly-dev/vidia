@@ -3,41 +3,41 @@ export type ModelSource = 'cloud' | 'nim' | 'local';
 /** A model managed by the extension (added by the user into one of the three groups). */
 export interface ManagedModel {
 	/** Unique key: `${source}:${modelId}` */
-	key: string;
+	key: string
 	/** NVIDIA model id, e.g. "meta/llama-3.1-8b-instruct" */
-	modelId: string;
-	name: string;
-	publisher: string;
-	source: ModelSource;
+	modelId: string
+	name: string
+	publisher: string
+	source: ModelSource
 	/** Maximum input tokens advertised to the chat harness. */
-	contextLength: number;
-	addedAt: number;
+	contextLength: number
+	addedAt: number
 	/** NIM container image, e.g. "nvcr.io/nim/meta/llama-3.1-8b-instruct:latest" */
-	nimImage?: string;
+	nimImage?: string
 	/** Host port the NIM container is published on. */
-	nimPort?: number;
+	nimPort?: number
 	/** Host port of the local runtime (lemonade/ollama/custom). */
-	localPort?: number;
+	localPort?: number
 }
 
 export interface ChatMessage {
-	role: 'system' | 'user' | 'assistant';
-	content: string;
+	role: 'system' | 'user' | 'assistant'
+	content: string
 }
 
 export interface CatalogModel {
-	id: string;
-	publisher: string;
-	name: string;
+	id: string
+	publisher: string
+	name: string
 }
 
 export interface ChatTarget {
 	/** OpenAI-compatible base URL, e.g. https://integrate.api.nvidia.com/v1 */
-	baseUrl: string;
-	apiKey?: string;
-	model: string;
+	baseUrl: string
+	apiKey?: string
+	model: string
 }
 
 export interface StreamCallbacks {
-	onDelta(text: string): void;
+	onDelta(text: string): void
 }
