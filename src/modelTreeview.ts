@@ -45,15 +45,16 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
     if (node.kind === 'setup') {
       const item = new vscode.TreeItem('Set your NVIDIA API key to get started',
         vscode.TreeItemCollapsibleState.None)
-      item.description = 'Click to open build.nvidia.com'
+      item.description = 'Click here to enter your key'
       item.tooltip = new vscode.MarkdownString(
-        '**No NVIDIA API key found.**\n\nClick to open ' +
-        '[build.nvidia.com](https://build.nvidia.com/explore/discover) and create a free API key (nvapi-…),' +
-        ' then run **VIDIA: Set NVIDIA API Key** to store it.')
+        '**No NVIDIA API key found.**\n\nClick this row to paste your API key (nvapi-…).\n\n' +
+        'No key yet? Use the $(globe) button on the right to create a free one on ' +
+        '[build.nvidia.com](https://build.nvidia.com/explore/discover).')
       item.contextValue = 'setup'
       item.iconPath = new vscode.ThemeIcon('key')
-      // Clicking brings the user to the site where the API key can be created.
-      item.command = { command: 'vidia.openBuildNvidia', title: 'Create API Key on build.nvidia.com' }
+      // Clicking the row opens the key input field; the inline $(globe) button
+      // (see package.json view/item/context) opens the key portal website.
+      item.command = { command: 'vidia.setNvidiaApiKey', title: 'Set NVIDIA API Key' }
       return item
     }
     if (node.kind === 'group') {

@@ -12,7 +12,9 @@ import {
   showNimLogs,
   setNvidiaApiKey,
   setNgcApiKey,
+  changeNvidiaApiKey,
   openBuildNvidia,
+  openSettings,
   registerChatHarness
 } from './server'
 
@@ -20,6 +22,7 @@ export async function activate(context: ExtensionContext) {
   const rc = commands.registerCommand
 
   const services = initServices(context)
+  await services.secrets.initKeyExistsContext()
   const p = await ModelsTreeProvider.createOrGet(services.manager, services.nim, services.secrets)
   const harness = registerChatHarness(context, p)
 
@@ -40,9 +43,11 @@ export async function activate(context: ExtensionContext) {
   const d8 = rc('vidia.setNvidiaApiKey', () => setNvidiaApiKey(p))
   const d9 = rc('vidia.setNgcApiKey', () => setNgcApiKey(p))
   const d10 = rc('vidia.openBuildNvidia', () => openBuildNvidia(p))
-  const d11 = rc('vidia.refreshServerStatus', () => p.refreshStatus())
+  const d11 = rc('vidia.openSettings', () => openSettings())
+  const d12 = rc('vidia.refreshServerStatus', () => p.refreshStatus())
+  const d13 = rc('vidia.changeNvidiaApiKey', () => changeNvidiaApiKey(p))
 
-  context.subscriptions.push(d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, ...harness)
+  context.subscriptions.push(d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, ...harness)
 }
 
 export function deactivate() {

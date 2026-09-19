@@ -1,6 +1,6 @@
-import { Disposable, ExtensionContext, OutputChannel, TreeItem, Uri, env, window } from 'vscode'
+import { Disposable, ExtensionContext, OutputChannel, TreeItem, Uri, env, window, commands } from 'vscode'
 
-import { NvidiaClient } from './nvidiaClient'
+import { NvidiaClient, NvidiaApiError, friendlyHttpError, DEFAULT_BASE_URL } from './nvidiaClient'
 import { ModelManager } from './modelManager'
 import { NimManager } from './nimManager'
 import { SecretManager } from './secretManager'
@@ -105,8 +105,18 @@ export async function setNgcApiKey(p: ModelsTreeProvider): Promise<void> {
   p.refresh()
 }
 
+export async function changeNvidiaApiKey(p: ModelsTreeProvider): Promise<void> {
+  await s().secrets.changeNvidiaKey()
+  p.refresh()
+}
+
 export function openBuildNvidia(_p: ModelsTreeProvider): Thenable<unknown> {
   return env.openExternal(Uri.parse('https://build.nvidia.com/models'))
+}
+
+/** Opens VS Code settings filtered to the VIDIA extension's configuration. */
+export function openSettings(): Thenable<unknown> {
+  return commands.executeCommand('workbench.action.openSettings', '@vidia')
 }
 
 // --- AI harness ------------------------------------------------------------

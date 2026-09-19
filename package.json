@@ -121,6 +121,18 @@
         "command": "vidia.openBuildNvidia",
         "title": "Open build.nvidia.com",
         "category": "VIDIA"
+      },
+      {
+        "command": "vidia.openSettings",
+        "title": "Open Settings",
+        "category": "VIDIA",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "vidia.changeNvidiaApiKey",
+        "title": "Change API Key",
+        "category": "VIDIA",
+        "icon": "$(key)"
       }
     ],
     "menus": {
@@ -134,9 +146,25 @@
           "command": "vidia.refreshServerStatus",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@2"
+        },
+        {
+          "command": "vidia.openSettings",
+          "when": "view == vidia.modelsExplorer",
+          "group": "navigation@3"
+        },
+        {
+          "command": "vidia.changeNvidiaApiKey",
+          "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
+        {
+          "command": "vidia.openBuildNvidia",
+          "when": "view == vidia.modelsExplorer && viewItem == setup",
+          "group": "inline@1",
+          "icon": "$(globe)"
+        },
         {
           "command": "vidia.ncp.setChatModelItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
