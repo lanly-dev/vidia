@@ -12,6 +12,11 @@
   "js/ts.tsc.autoDetect": "off",
   "cSpell.words": [
     "efix",
+    "nvapi",
+    "Treeview",
     "vidia"
+  ],
+  "editor.rulers": [
+    120
   ]
 }

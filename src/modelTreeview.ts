@@ -4,6 +4,7 @@ import { ModelManager, SOURCE_LABELS } from './modelManager'
 import { NimManager } from './nimManager'
 import type { SecretManager } from './secretManager'
 import { refreshEvents } from './events'
+import { ModelDecorationProvider } from './modelDecorations'
 
 type Node = SetupNode | GroupNode | ModelNode | MessageNode
 
@@ -23,14 +24,13 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
     nim: NimManager,
     secrets: SecretManager
   ): Promise<ModelsTreeProvider> {
-    if (!ModelsTreeProvider.instance)
-      ModelsTreeProvider.instance = new ModelsTreeProvider(manager, nim, secrets)
+    if (!ModelsTreeProvider.instance) ModelsTreeProvider.instance = new ModelsTreeProvider(manager, nim, secrets)
     return ModelsTreeProvider.instance
   }
   private constructor(
-		private readonly manager: ModelManager,
-		private readonly nim: NimManager,
-		private readonly secrets: SecretManager
+    private readonly manager: ModelManager,
+    private readonly nim: NimManager,
+    private readonly secrets: SecretManager
   ) {
     // Any part of the extension can fire refreshEvents.fire() to re-query the tree.
     refreshEvents.onDidRequestRefresh(() => this.refresh())
@@ -40,6 +40,13 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
 
   /** Refreshes the server/model status section of the tree. */
   refreshStatus(): void { this.refresh() }
+
+  /**
+   * Returns the key of the currently selected chat model, or undefined if none is set.
+   */
+  private get selectedModelKey(): string | undefined {
+    return vscode.workspace.getConfiguration('vidia').get<string>('chatModel', '')
+  }
 
   getTreeItem(node: Node): vscode.TreeItem {
     if (node.kind === 'setup') {
@@ -70,14 +77,18 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
       return item
     }
     const m = node.model
+    const isActive = this.selectedModelKey === m.key
     const item = new vscode.TreeItem(m.name, vscode.TreeItemCollapsibleState.None)
+    item.resourceUri = ModelDecorationProvider.uriFor(m.modelId, isActive)
     item.description = `${m.publisher} · ${m.source}`
     item.tooltip = new vscode.MarkdownString(`**${m.modelId}**\n\n- Source: ${SOURCE_LABELS[m.source]}` +
-			(m.nimImage ? `\n- Image: \`${m.nimImage}\`` : '') + (m.nimPort ? `\n- Port: ${m.nimPort}` : ''))
+      (m.nimImage ? `\n- Image: \`${m.nimImage}\`` : '') + (m.nimPort ? `\n- Port: ${m.nimPort}` : ''))
     item.contextValue = `model:${m.source}:${m.modelId}`
     item.iconPath = new vscode.ThemeIcon(
       m.source === 'cloud' ? 'cloud' : m.source === 'nim' ? 'server-process' : 'code')
     item.command = { command: 'vidia.ncp.setChatModelItem', title: 'Use for Chat', arguments: [item] }
+
+    if (isActive) item.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green'))
     return item
   }
 
@@ -85,13 +96,12 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
     if (!element) {
       // Show a top-level setup item while no NVIDIA API key is stored yet.
       const nodes: Node[] = []
-      if (!await this.secrets.getNvidiaKey())
-        nodes.push({ kind: 'setup' })
+      if (!await this.secrets.getNvidiaKey()) nodes.push({ kind: 'setup' })
       return nodes.concat((['cloud', 'nim', 'local'] as ModelSource[]).map(source => ({
         kind: 'group', source, label: SOURCE_LABELS[source]
       } as GroupNode)))
     }
-    if (element.kind !== 'group')  return []
+    if (element.kind !== 'group') return []
     const models = this.manager.all().filter(m => m.source === element.source)
       .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
     if (models.length === 0) {

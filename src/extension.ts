@@ -1,6 +1,7 @@
 import { commands, ExtensionContext, TreeItem, window } from 'vscode'
 
 import ModelsTreeProvider from './modelTreeview'
+import { ModelDecorationProvider } from './modelDecorations'
 import {
   initServices,
   addModel,
@@ -32,6 +33,10 @@ export async function activate(context: ExtensionContext) {
     showCollapseAll: true
   })
 
+  // FileDecoration provider that colors the active model's label green, following
+  // the same pattern used in vscode-lemon (modelDecorations.ts).
+  const dDecorations = window.registerFileDecorationProvider(new ModelDecorationProvider())
+
   const d1 = rc('vidia.internal.addModel', (sourceArg?: string) => addModel(p, sourceArg))
   const d2 = rc('vidia.ncp.removeModelItem', (item?: TreeItem) => removeModel(p, item))
   const d3 = rc('vidia.ncp.setChatModelItem', (item?: TreeItem) => pickChatModel(p, item))
@@ -47,7 +52,7 @@ export async function activate(context: ExtensionContext) {
   const d12 = rc('vidia.refreshServerStatus', () => p.refreshStatus())
   const d13 = rc('vidia.changeNvidiaApiKey', () => changeNvidiaApiKey(p))
 
-  context.subscriptions.push(d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, ...harness)
+  context.subscriptions.push(d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, dDecorations, ...harness)
 }
 
 export function deactivate() {
