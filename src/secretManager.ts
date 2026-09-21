@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import { friendlyHttpError } from './nvidiaClient'
 
 const NVIDIA_KEY = 'vidia.nvapiKey'
 const NGC_KEY = 'vidia.ngcApiKey'
@@ -104,24 +105,11 @@ export class SecretManager {
     })
     const body = await res.text()
     if (!res.ok) {
-      let msg: string
-      if (res.status === 401 || res.status === 403)
-        msg = 'Authorization failed. Check your NVIDIA API key (NVIDIA: Set NVIDIA API Key).'
-      else if (res.status === 429)
-        msg = 'Rate limit reached on the free NVIDIA endpoint. Wait a moment and retry.'
-      else if (res.status === 404) {
-        msg = 'The /models endpoint was not found at this base URL ' +
-              'check your VIDIA baseUrl setting or the key may not expose a model catalog.'
-      }
-      else if (res.status >= 500)
-        msg = `NVIDIA server error (${res.status}). The endpoint may be busy; try again later.`
-      else
-        msg = `NVIDIA API request failed (${res.status}): ${body.slice(0, 300)}`
-      const fallback = res.status === 404
-        ? await this.testKeyViaChat(baseUrl, key)
-        : null
-      if (!fallback) throw new Error(msg)
-      return fallback
+      // A missing model catalog (custom base URL, or a key that does not expose
+      // /models) is verified with a tiny chat completion instead; that probe error
+      // is more specific (bad key vs. model not entitled to this account).
+      if (res.status === 404) return this.testKeyViaChat(baseUrl, key)
+      throw new Error(friendlyHttpError(res.status, body))
     }
     const json = JSON.parse(body) as { data?: Array<{ id?: string }> }
     return (json.data ?? []).filter(m => typeof (m as any).id === 'string') as { id: string }[]
@@ -149,16 +137,8 @@ export class SecretManager {
     })
     if (!res.ok) {
       const body = await res.text()
-      let msg: string
-      if (res.status === 401 || res.status === 403)
-        msg = 'Authorization failed. Check your NVIDIA API key (NVIDIA: Set NVIDIA API Key).'
-      else if (res.status === 429)
-        msg = 'Rate limit reached on the free NVIDIA endpoint. Wait a moment and retry.'
-      else if (res.status >= 500)
-        msg = `NVIDIA server error (${res.status}). The endpoint may be busy; try again later.`
-      else
-        msg = `NVIDIA API request failed (${res.status}): ${body.slice(0, 300)}`
-      throw new Error(msg)
+      // 401/403 => bad key; 404 with 'Not found for account' => model not entitled.
+      throw new Error(friendlyHttpError(res.status, body))
     }
     return [{ id: 'cloud:nvidia/llama-3.1-nemotron-70b-instruct' }]
   }

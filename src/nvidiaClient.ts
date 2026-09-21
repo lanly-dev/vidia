@@ -9,6 +9,32 @@ export class NvidiaApiError extends Error {
   }
 }
 
+/** True when `body` is the NVIDIA JSON error returned when a model's deployment is
+ * not mapped to the caller's account. Two observed body shapes:
+ *   {"status":404,"title":"Not Found","detail":"Function 'xxx': Not found for account 'yyy'"}
+ *   {"errors":[{"message":"Function 'xxx': is not found"}]}
+ */
+export function isNvidiaAccountFunctionNotFoundError(body: string): boolean {
+  try {
+    const json = JSON.parse(body) as {
+      detail?: string
+      errors?: Array<{ message?: string }>
+    }
+    const msg = json.detail ?? json.errors?.[0]?.message ?? ''
+    return msg.includes('Not found for account') || msg.includes('is not found')
+  } catch {
+    return false
+  }
+}
+
+/** Actionable message shown when a model's deployment is not mapped to the caller's
+ * NVIDIA account (i.e. "Public API Endpoints" is not enabled for the organization). */
+export const NVIDIA_ACCOUNT_ENTITLEMENT_HINT =
+  'This model is not available on your NVIDIA account. Your API key is valid, but the ' +
+  '"Public API Endpoints" entitlement may not be enabled for your account/organization. ' +
+  'Visit https://build.nvidia.com/explore/discover, sign in, and request access to ' +
+  'Public API Endpoints. Alternatively, self-host the model via a NIM container or local runtime.'
+
 export function friendlyHttpError(status: number, body: string): string {
   if (status === 401 || status === 403)
     return 'Authorization failed. Check your NVIDIA API key (NVIDIA: Set NVIDIA API Key).'
@@ -19,6 +45,9 @@ export function friendlyHttpError(status: number, body: string): string {
 
   if (status >= 500)
     return `NVIDIA server error (${status}). The endpoint may be busy; try again later.`
+
+  if (status === 404 && isNvidiaAccountFunctionNotFoundError(body))
+    return NVIDIA_ACCOUNT_ENTITLEMENT_HINT
 
   return `NVIDIA API request failed (${status}): ${body.slice(0, 300)}`
 }
