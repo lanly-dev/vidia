@@ -4,7 +4,7 @@ import { NvidiaClient } from './nvidiaClient'
 import { OutputChannel } from 'vscode'
 import { SecretManager } from './secretManager'
 
-export type ModelSource = 'cloud' | 'nim' | 'local';
+export type ModelSource = 'cloud' | 'nim' | 'local'
 
 /**
  * Shared services created once at activation (audio-lab style: plain module
@@ -17,7 +17,6 @@ export interface Services {
 	nim: NimManager
 	nimLog: OutputChannel
 }
-
 
 /** A model managed by the extension (added by the user into one of the three groups). */
 export interface ManagedModel {

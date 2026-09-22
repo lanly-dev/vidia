@@ -1,8 +1,8 @@
 import { commands, ExtensionContext, TreeItem, window, Disposable } from 'vscode'
 
 import ModelsTreeProvider from './modelTreeview'
+import Server from './server'
 import { ModelDecorationProvider } from './modelDecorations'
-import { Server } from './server'
 
 export async function activate(context: ExtensionContext) {
   const rc = commands.registerCommand

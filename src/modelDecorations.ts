@@ -18,11 +18,7 @@ export class ModelDecorationProvider implements vscode.FileDecorationProvider {
 
   provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
     if (uri.scheme !== 'vidia-model') return undefined
-    if (uri.query.includes('active=1')) {
-      return {
-        color: new vscode.ThemeColor('charts.green')
-      }
-    }
+    if (uri.query.includes('active=1')) return { color: new vscode.ThemeColor('charts.green') }
     return undefined
   }
 }

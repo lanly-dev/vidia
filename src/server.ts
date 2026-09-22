@@ -10,7 +10,7 @@ import { VidiaLmProvider } from './lmcProvider'
 import ModelsTreeProvider from './modelTreeview'
 
 /** Main server class encapsulating all extension services */
-export class Server {
+export default class Server {
   public secrets: SecretManager
   public client: NvidiaClient
   public manager: ModelManager
@@ -36,7 +36,7 @@ export class Server {
     this.manager.setClient(this.client)
     this.logs = window.createOutputChannel('VIDIA', { log: true })
     this.nimLog = window.createOutputChannel('VIDIA · NIM')
-    
+
     this.disposable.push(this.logs)
     this.disposable.push(this.nimLog)
     this.disposable.push(this.manager)

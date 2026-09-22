@@ -1,15 +1,15 @@
 import * as vscode from 'vscode'
 import { CatalogModel, ChatTarget, ManagedModel, ModelSource } from './types'
 import { DEFAULT_BASE_URL, NvidiaClient } from './nvidiaClient'
-import type { NimManager } from './nimManager'
 import { refreshEvents } from './events'
+import type { NimManager } from './nimManager'
 
 const STORAGE_KEY = 'vidia.managedModels'
 
 export const SOURCE_LABELS: Record<ModelSource, string> = {
   cloud: 'Cloud · Free Endpoint',
-  nim: 'NIM · Self-Hosted',
-  local: 'Local · Runtime'
+  local: 'Local · Runtime',
+  nim: 'NIM · Self-Hosted'
 }
 
 export class ModelManager implements vscode.Disposable {

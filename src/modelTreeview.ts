@@ -1,10 +1,11 @@
 import * as vscode from 'vscode'
+
 import { ManagedModel, ModelSource } from './types'
+import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager, SOURCE_LABELS } from './modelManager'
 import { NimManager } from './nimManager'
-import type { SecretManager } from './secretManager'
 import { refreshEvents } from './events'
-import { ModelDecorationProvider } from './modelDecorations'
+import type { SecretManager } from './secretManager'
 
 type Node = SetupNode | GroupNode | ModelNode | MessageNode
 
@@ -19,18 +20,15 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   /** Singleton factory (audio-lab style). */
-  static async createOrGet(
-    manager: ModelManager,
-    nim: NimManager,
-    secrets: SecretManager
-  ): Promise<ModelsTreeProvider> {
-    if (!ModelsTreeProvider.instance) ModelsTreeProvider.instance = new ModelsTreeProvider(manager, nim, secrets)
+  static async createOrGet(mm: ModelManager, nm: NimManager, sm: SecretManager): Promise<ModelsTreeProvider> {
+    if (!ModelsTreeProvider.instance) ModelsTreeProvider.instance = new ModelsTreeProvider(mm, nm, sm)
     return ModelsTreeProvider.instance
   }
+
   private constructor(
-    private readonly manager: ModelManager,
-    private readonly nim: NimManager,
-    private readonly secrets: SecretManager
+    private readonly modelManager: ModelManager,
+    private readonly nimManager: NimManager,
+    private readonly secretManager: SecretManager
   ) {
     // Any part of the extension can fire refreshEvents.fire() to re-query the tree.
     refreshEvents.onDidRequestRefresh(() => this.refresh())
@@ -96,13 +94,13 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
     if (!element) {
       // Show a top-level setup item while no NVIDIA API key is stored yet.
       const nodes: Node[] = []
-      if (!await this.secrets.getNvidiaKey()) nodes.push({ kind: 'setup' })
+      if (!await this.secretManager.getNvidiaKey()) nodes.push({ kind: 'setup' })
       return nodes.concat((['cloud', 'nim', 'local'] as ModelSource[]).map(source => ({
         kind: 'group', source, label: SOURCE_LABELS[source]
       } as GroupNode)))
     }
     if (element.kind !== 'group') return []
-    const models = this.manager.all().filter(m => m.source === element.source)
+    const models = this.modelManager.all().filter(m => m.source === element.source)
       .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
     if (models.length === 0) {
       const hint = element.source === 'cloud'
@@ -113,7 +111,7 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
     }
     if (element.source === 'nim') {
       for (const m of models) {
-        const running = await this.nim.isRunning(m);
+        const running = await this.nimManager.isRunning(m);
         (m as ManagedModel & { running?: boolean }).running = running
       }
     }
