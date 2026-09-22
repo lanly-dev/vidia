@@ -1,129 +1,118 @@
 import { Disposable, ExtensionContext, OutputChannel, TreeItem, Uri, env, window, commands } from 'vscode'
 
-import { NvidiaClient, NvidiaApiError, friendlyHttpError, DEFAULT_BASE_URL } from './nvidiaClient'
 import { ModelManager } from './modelManager'
 import { NimManager } from './nimManager'
-import { SecretManager } from './secretManager'
-import { VidiaLmProvider } from './lmcProvider'
+import { NvidiaClient } from './nvidiaClient'
 import { registerChatParticipant } from './chatParticipant'
+import { SecretManager } from './secretManager'
+import { Services } from './types'
+import { VidiaLmProvider } from './lmcProvider'
 import ModelsTreeProvider from './modelTreeview'
 
-/**
- * Shared services created once at activation (audio-lab style: plain module
- * functions below receive the tree provider and use these shared services).
- */
-interface Services {
-  secrets: SecretManager
-  client: NvidiaClient
-  manager: ModelManager
-  nim: NimManager
-  nimLog: OutputChannel
-}
+/** Main server class encapsulating all extension services */
+export class Server {
+  public secrets: SecretManager
+  public client: NvidiaClient
+  public manager: ModelManager
+  public nim: NimManager
+  public nimLog: OutputChannel
+  public logs: OutputChannel
+  private disposable: Disposable[] = []
 
-let services: Services | undefined
+  constructor(context: ExtensionContext) {
+    this.secrets = new SecretManager(context)
+    this.client = new NvidiaClient(() => this.secrets.getNvidiaKey(),
+      (msg) => this.logs.appendLine(msg)
+    )
+    this.nim = new NimManager(
+      () => this.secrets.getNgcKey(),
+      (item) => this.manager.fromTreeItem(item),
+      (msg) => this.nimLog.appendLine(msg)
+    )
+    this.manager = new ModelManager(
+      context,
+      (source) => source === 'nim' ? this.secrets.getNgcKey() : this.secrets.getNvidiaKey()
+    )
+    this.manager.setClient(this.client)
+    this.logs = window.createOutputChannel('VIDIA', { log: true })
+    this.nimLog = window.createOutputChannel('VIDIA · NIM')
+    
+    this.disposable.push(this.logs)
+    this.disposable.push(this.nimLog)
+    this.disposable.push(this.manager)
+  }
 
-export function initServices(context: ExtensionContext): Services {
-  if (services) return services
+  /** Create a new Server instance */
+  static create(context: ExtensionContext): Server {
+    return new Server(context)
+  }
 
-  const log = window.createOutputChannel('VIDIA', { log: true })
-  const nimLog = window.createOutputChannel('VIDIA · NIM')
-  const secrets = new SecretManager(context)
-  const client = new NvidiaClient(() => secrets.getNvidiaKey(), msg => log.info(msg))
-  const manager = new ModelManager(context, source =>
-    source === 'nim' ? secrets.getNgcKey() : secrets.getNvidiaKey())
-  manager.setClient(client)
-  const nim = new NimManager(
-    () => secrets.getNgcKey(),
-    item => manager.fromTreeItem(item),
-    msg => nimLog.appendLine(msg)
-  )
+  /** Helper function to get server instance (for backward compatibility) */
+  static s(context: ExtensionContext): Server {
+    return Server.create(context)
+  }
 
-  services = { secrets, client, manager, nim, nimLog }
-  context.subscriptions.push(log, nimLog, manager)
-  return services
-}
+  /** Get a deep copy of the services object */
+  getServices(): Services {
+    return { secrets: this.secrets, client: this.client, manager: this.manager, nim: this.nim, nimLog: this.nimLog }
+  }
 
-function s(): Services {
-  if (!services) throw new Error('VIDIA services are not initialized.')
-  return services
-}
+  /** Register the chat harness */
+  registerChatHarness(context: ExtensionContext, _p: ModelsTreeProvider): Disposable[] {
+    const { client, manager } = this.getServices()
+    const provider = new VidiaLmProvider(manager, client, manager.onDidChange)
+    return [provider.register(), registerChatParticipant(context, 'vidia')]
+  }
 
-// --- model flows -----------------------------------------------------------
+  /** Model operations */
+  async addModel(_p: ModelsTreeProvider, sourceArg?: string): Promise<void> {
+    await this.manager.addModelFlow(sourceArg as never)
+  }
 
-export async function addModel(p: ModelsTreeProvider, sourceArg?: string): Promise<void> {
-  const { manager } = s()
-  await manager.addModelFlow(sourceArg as never)
-  p.refresh()
-}
+  async removeModel(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
+    await this.manager.removeModel(item, this.nim)
+  }
 
-export async function removeModel(p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-  const { manager, nim } = s()
-  await manager.removeModel(item, nim)
-  p.refresh()
-}
+  async pickChatModel(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
+    await this.manager.selectChatModel(item)
+  }
 
-export async function pickChatModel(p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-  const { manager } = s()
-  await manager.selectChatModel(item)
-  p.refresh()
-}
+  async testModel(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
+    await this.manager.testModel(item)
+  }
 
-export async function testModel(p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-  const { manager } = s()
-  await manager.testModel(item)
-  p.refresh()
-}
+  /** NIM container operations */
+  async startNim(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
+    await this.nim.startWithProgress(item)
+  }
 
-// --- NIM container flows ---------------------------------------------------
+  async stopNim(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
+    await this.nim.stopWithFeedback(item)
+  }
 
-export async function startNim(p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-  const { nim } = s()
-  await nim.startWithProgress(item)
-  p.refresh()
-}
+  async showNimLogs(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
+    await this.nim.showLogs(item, this.nimLog)
+  }
 
-export async function stopNim(p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-  const { nim } = s()
-  await nim.stopWithFeedback(item)
-  p.refresh()
-}
+  /** Settings operations */
+  async setNvidiaApiKey(_p: ModelsTreeProvider): Promise<void> {
+    await this.secrets.setNvidiaKey()
+  }
 
-export async function showNimLogs(p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-  const { nim, nimLog } = s()
-  await nim.showLogs(item, nimLog)
-}
+  async setNgcApiKey(_p: ModelsTreeProvider): Promise<void> {
+    await this.secrets.setNgcKey()
+  }
 
-// --- settings / misc -------------------------------------------------------
+  async changeNvidiaApiKey(_p: ModelsTreeProvider): Promise<void> {
+    await this.secrets.changeNvidiaKey()
+  }
 
-export async function setNvidiaApiKey(p: ModelsTreeProvider): Promise<void> {
-  await s().secrets.setNvidiaKey()
-  p.refresh()
-}
+  /** Utility methods */
+  openBuildNvidia(_p: ModelsTreeProvider): Thenable<unknown> {
+    return env.openExternal(Uri.parse('https://build.nvidia.com/models'))
+  }
 
-export async function setNgcApiKey(p: ModelsTreeProvider): Promise<void> {
-  await s().secrets.setNgcKey()
-  p.refresh()
-}
-
-export async function changeNvidiaApiKey(p: ModelsTreeProvider): Promise<void> {
-  await s().secrets.changeNvidiaKey()
-  p.refresh()
-}
-
-export function openBuildNvidia(_p: ModelsTreeProvider): Thenable<unknown> {
-  return env.openExternal(Uri.parse('https://build.nvidia.com/models'))
-}
-
-/** Opens VS Code settings filtered to the VIDIA extension's configuration. */
-export function openSettings(): Thenable<unknown> {
-  return commands.executeCommand('workbench.action.openSettings', '@vidia')
-}
-
-// --- AI harness ------------------------------------------------------------
-
-/** Registers the language model provider and the @vidia chat participant. */
-export function registerChatHarness(context: ExtensionContext, _p: ModelsTreeProvider): Disposable[] {
-  const { client, manager } = s()
-  const provider = new VidiaLmProvider(manager, client, manager.onDidChange)
-  return [provider.register(), registerChatParticipant(context, 'vidia')]
+  openSettings(): Thenable<unknown> {
+    return commands.executeCommand('workbench.action.openSettings', '@vidia')
+  }
 }

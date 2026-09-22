@@ -1,4 +1,23 @@
+import { ModelManager } from './modelManager'
+import { NimManager } from './nimManager'
+import { NvidiaClient } from './nvidiaClient'
+import { OutputChannel } from 'vscode'
+import { SecretManager } from './secretManager'
+
 export type ModelSource = 'cloud' | 'nim' | 'local';
+
+/**
+ * Shared services created once at activation (audio-lab style: plain module
+ * functions below receive the tree provider and use these shared services).
+ */
+export interface Services {
+	secrets: SecretManager
+	client: NvidiaClient
+	manager: ModelManager
+	nim: NimManager
+	nimLog: OutputChannel
+}
+
 
 /** A model managed by the extension (added by the user into one of the three groups). */
 export interface ManagedModel {
