@@ -20,7 +20,7 @@
         {
           "id": "vidia",
           "title": "VIDIA",
-          "icon": "media/nvidia.svg"
+          "icon": "media/temp.svg"
         }
       ]
     },
@@ -28,7 +28,8 @@
       "vidia": [
         {
           "id": "vidia.modelsExplorer",
-          "name": "Models Explorer"
+          "name": "Models Explorer",
+          "icon": "media/temp.svg"
         }
       ]
     },
@@ -46,15 +47,15 @@
         "isSticky": true,
         "commands": [
           {
-            "command": "model",
+            "name": "model",
             "description": "Pick which managed model to chat with"
           },
           {
-            "command": "explain",
+            "name": "explain",
             "description": "Explain the selected code"
           },
           {
-            "command": "fix",
+            "name": "fix",
             "description": "Suggest a fix for the selected code"
           }
         ]
@@ -289,4 +290,3 @@
     "typescript-eslint": "^8.61.1"
   }
 }
-
