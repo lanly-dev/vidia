@@ -23,7 +23,7 @@ export interface Services {
 export interface ManagedModel {
 	/** Unique key: `${source}:${modelId}` */
 	key: string
-	/** NVIDIA model id, e.g. "meta/llama-3.1-8b-instruct" */
+	/** NVIDIA model id, e.g. "openai/gpt-oss-20b" */
 	modelId: string
 	name: string
 	publisher: string
@@ -31,7 +31,7 @@ export interface ManagedModel {
 	/** Maximum input tokens advertised to the chat harness. */
 	contextLength: number
 	addedAt: number
-	/** NIM container image, e.g. "nvcr.io/nim/meta/llama-3.1-8b-instruct:latest" */
+	/** NIM container image, e.g. "nvcr.io/nim/openai/gpt-oss-20b:latest" */
 	nimImage?: string
 	/** Host port the NIM container is published on. */
 	nimPort?: number
@@ -55,6 +55,12 @@ export interface CatalogModel {
 	id: string
 	publisher: string
 	name: string
+}
+
+export interface CatalogCache {
+	fetchedAt: number
+	baseUrl: string
+	models: CatalogModel[]
 }
 
 export interface ChatTarget {

@@ -134,6 +134,12 @@
         "title": "Change API Key",
         "category": "VIDIA",
         "icon": "$(key)"
+      },
+      {
+        "command": "vidia.refreshCatalog",
+        "title": "Refresh Model Catalog",
+        "category": "VIDIA",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -145,6 +151,11 @@
         },
         {
           "command": "vidia.refreshServerStatus",
+          "when": "view == vidia.modelsExplorer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "vidia.refreshCatalog",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@2"
         },
@@ -235,7 +246,7 @@
         "vidia.chatModel": {
           "type": "string",
           "default": "",
-          "description": "Key of the managed model used for chat, e.g. cloud:meta/llama-3.1-8b-instruct."
+          "description": "Key of the managed model used for chat, e.g. cloud:openai/gpt-oss-20b."
         },
         "vidia.nim.containerRuntime": {
           "type": "string",

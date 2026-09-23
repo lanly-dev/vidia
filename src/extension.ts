@@ -39,8 +39,13 @@ export async function activate(context: ExtensionContext) {
   const d11 = rc('vidia.openSettings', () => server.openSettings())
   const d12 = rc('vidia.refreshServerStatus', () => p.refreshStatus())
   const d13 = rc('vidia.changeNvidiaApiKey', () => server.changeNvidiaApiKey(p))
+  const d14 = rc('vidia.refreshCatalog', () => server.refreshCatalog(p))
 
-  context.subscriptions.push(d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, dDecorations, ...harness)
+  // Prefetch the model catalog in the background (skipped when the cached
+  // snapshot is less than 5 days old); never blocks activation.
+  server.manager.ensureCatalogFresh()
+
+  context.subscriptions.push(d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, dDecorations, ...harness)
 }
 
 export function deactivate() {

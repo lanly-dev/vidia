@@ -110,9 +110,13 @@ export default class Server {
     await this.secrets.changeNvidiaKey()
   }
 
-  /** Utility methods */
-  openBuildNvidia(_p: ModelsTreeProvider): Thenable<unknown> {
+  async openBuildNvidia(_p: ModelsTreeProvider): Promise<unknown> {
     return env.openExternal(Uri.parse('https://build.nvidia.com/models'))
+  }
+
+  /** Re-fetches `<baseUrl>/models` and persists it to globalState w/ timestamp. */
+  async refreshCatalog(_p: ModelsTreeProvider): Promise<void> {
+    await this.manager.refreshCatalogFlow()
   }
 
   openSettings(): Thenable<unknown> {

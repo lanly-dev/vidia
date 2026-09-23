@@ -1,11 +1,14 @@
 import * as vscode from 'vscode'
-import type { CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelSource } from './types'
+import type { CatalogCache, CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelSource } from './types'
 import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
 import { DEFAULT_BASE_URL, NvidiaClient } from './nvidiaClient'
 import { refreshEvents } from './events'
 import type { NimManager } from './nimManager'
 
 const STORAGE_KEY = 'vidia.managedModels'
+const CATALOG_KEY = 'vidia.modelCatalog'
+/** Catalog is re-fetched when the cached snapshot is older than this. */
+const CATALOG_TTL_MS = 5 * 24 * 60 * 60 * 1000
 
 /** Re-exported for existing import sites (modelTreeview, lmcProvider, …). */
 export { SOURCE_LABELS }
@@ -75,33 +78,72 @@ export class ModelManager implements vscode.Disposable {
     return { baseUrl: `http://localhost:${port}/v1`, model: model.modelId }
   }
 
-  /** Fetches the NVIDIA catalog, falls back to a small built-in list on failure. */
-  async getCatalog(apiKey?: string, fallback: () => CatalogModel[] = staticCatalog): Promise<CatalogModel[]> {
-    try {
-      const baseUrl = vscode.workspace.getConfiguration('vidia').get<string>('baseUrl', DEFAULT_BASE_URL)
-      const res = await fetch(`${baseUrl}/models`, {
-        headers: apiKey
-          ? { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }
-          : { Accept: 'application/json' }
+  /** Reads the cached model catalog (endpoint snapshot + timestamp), if any. */
+  getCatalogCache(): CatalogCache | undefined {
+    return this.context.globalState.get<CatalogCache>(CATALOG_KEY)
+  }
+
+  /** Fetches the live model catalog from `<baseUrl>/models` (no cache read). */
+  async fetchCatalog(apiKey?: string): Promise<CatalogModel[]> {
+    const baseUrl = vscode.workspace.getConfiguration('vidia').get<string>('baseUrl', DEFAULT_BASE_URL)
+    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, {
+      headers: apiKey
+        ? { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }
+        : { Accept: 'application/json' }
+    })
+    if (!res.ok)  throw new Error(`Catalog request failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
+    const json = JSON.parse(await res.text()) as { data?: Array<{ id?: string }> }
+    const models = (json.data ?? [])
+      .filter(m => typeof m.id === 'string')
+      .map(m => {
+        const id = m.id as string
+        const slash = id.indexOf('/')
+        return {
+          id,
+          publisher: slash > 0 ? id.slice(0, slash) : 'nvidia',
+          name: slash > 0 ? id.slice(slash + 1) : id
+        }
       })
-      if (!res.ok)  return fallback()
-      const json = JSON.parse(await res.text()) as { data?: Array<{ id?: string }> }
-      const models = (json.data ?? [])
-        .filter(m => typeof m.id === 'string')
-        .map(m => {
-          const id = m.id as string
-          const slash = id.indexOf('/')
-          return {
-            id,
-            publisher: slash > 0 ? id.slice(0, slash) : 'nvidia',
-            name: slash > 0 ? id.slice(slash + 1) : id
-          }
-        })
-        .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
-      return models.length > 0 ? models : fallback()
-    } catch {
-      return fallback()
+      .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
+    if (models.length === 0)  throw new Error('Catalog request returned no models.')
+    return models
+  }
+
+  /** Fetches the live catalog and persists it to globalState with a timestamp. */
+  async refreshCatalog(apiKey?: string): Promise<CatalogCache> {
+    const baseUrl = vscode.workspace.getConfiguration('vidia').get<string>('baseUrl', DEFAULT_BASE_URL)
+    const models = await this.fetchCatalog(apiKey ?? await this.getApiKey('cloud'))
+    const cache: CatalogCache = { fetchedAt: Date.now(), baseUrl, models }
+    await this.context.globalState.update(CATALOG_KEY, cache)
+    return cache
+  }
+
+  /**
+   * Returns the model catalog from the globalState cache. Fetches live only
+   * when the snapshot is missing/stale (older than 5 days) or `forceRefresh`
+   * is set (VIDIA: Refresh Model Catalog). Activate-time prefetch goes
+   * through here too — Add Model never triggers a network fetch by itself.
+   */
+  async getCatalog(apiKey?: string, opts: { forceRefresh?: boolean } = {}): Promise<CatalogModel[]> {
+    const cached = this.getCatalogCache()
+    const stale = !cached || Date.now() - cached.fetchedAt > CATALOG_TTL_MS
+    if ((opts.forceRefresh || stale)) {
+      try {
+        return (await this.refreshCatalog(apiKey)).models
+      } catch {
+        if (cached)  return cached.models
+        throw new Error('VIDIA: could not reach the model endpoint and no cached catalog exists.')
+      }
     }
+    return cached?.models ?? []
+  }
+
+  /**
+   * Fire-and-forget prefetch for extension activation: refreshes the catalog
+   * in the background when the snapshot is missing or older than 5 days.
+   */
+  ensureCatalogFresh(): void {
+    void this.getCatalog(undefined, {}).catch(() => undefined)
   }
 
   /**
@@ -113,7 +155,21 @@ export class ModelManager implements vscode.Disposable {
       (['cloud', 'nim', 'local'] as ModelSource[]).map(s => ({ label: SOURCE_LABELS[s], source: s })),
       { placeHolder: 'Where should this model run?' }))?.source ?? 'cloud'
 
-    const catalog = await this.getCatalog(await this.getApiKey('cloud'))
+    let catalog: CatalogModel[]
+    try {
+      catalog = await this.getCatalog(await this.getApiKey('cloud'))
+    } catch {
+      catalog = []
+    }
+    if (catalog.length === 0) {
+      const retry = await vscode.window.showErrorMessage(
+        'VIDIA: could not reach the model endpoint and no cached catalog exists.',
+        'Refresh Catalog', 'Open build.nvidia.com')
+      if (retry === 'Refresh Catalog')  await this.refreshCatalogFlow()
+      else if (retry === 'Open build.nvidia.com')
+        void vscode.env.openExternal(vscode.Uri.parse('https://build.nvidia.com/models'))
+      return undefined
+    }
     const groups = [...new Set(catalog.map(m => m.publisher))]
     const picked = await vscode.window.showQuickPick(groups.map(p => ({ label: `$(folder) ${p}`, publisher: p })),
       { placeHolder: 'Choose the model publisher on build.nvidia.com' })
@@ -219,18 +275,23 @@ export class ModelManager implements vscode.Disposable {
     }
   }
 
-  dispose(): void { this._onDidChange.dispose() }
-}
+  /** Command flow: force-fetch the catalog, persist it, and report the result. */
+  async refreshCatalogFlow(): Promise<void> {
+    try {
+      const cache = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Refreshing model catalog…' },
+        () => this.refreshCatalog())
+      vscode.window.showInformationMessage(
+        `Model catalog updated — ${cache.models.length} model(s), ${new Date(cache.fetchedAt).toLocaleString()}.`)
+    } catch (e) {
+      const cached = this.getCatalogCache()
+      const when = cached ? new Date(cached.fetchedAt).toLocaleString() : ''
+      const count = cached ? ` (${cached.models.length} models)` : ''
+      vscode.window.showErrorMessage(
+        `Catalog refresh failed: ${e instanceof Error ? e.message : String(e)}` +
+        (cached ? ` Using cached snapshot from ${when}${count}.` : ''))
+    }
+  }
 
-export function staticCatalog(): CatalogModel[] {
-  const ids = [
-    'meta/llama-3.1-8b-instruct', 'meta/llama-3.1-70b-instruct', 'meta/llama-3.3-70b-instruct',
-    'nvidia/nemotron-nano-9b-v2', 'nvidia/llama-3.3-nemotron-super-49b-v1',
-    'qwen/qwen2.5-coder-32b-instruct', 'deepseek-ai/deepseek-r1', 'microsoft/phi-4-mini-instruct',
-    'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'mistralai/mistral-nemotron', 'moonshotai/kimi-k2-instruct'
-  ]
-  return ids.map(id => {
-    const slash = id.indexOf('/')
-    return { id, publisher: id.slice(0, slash), name: id.slice(slash + 1) }
-  })
+  dispose(): void { this._onDidChange.dispose() }
 }
