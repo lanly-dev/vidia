@@ -1,16 +1,14 @@
 import * as vscode from 'vscode'
-import { CatalogModel, ChatTarget, ManagedModel, ModelSource } from './types'
+import type { CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelSource } from './types'
+import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
 import { DEFAULT_BASE_URL, NvidiaClient } from './nvidiaClient'
 import { refreshEvents } from './events'
 import type { NimManager } from './nimManager'
 
 const STORAGE_KEY = 'vidia.managedModels'
 
-export const SOURCE_LABELS: Record<ModelSource, string> = {
-  cloud: 'Cloud · Free Endpoint',
-  local: 'Local · Runtime',
-  nim: 'NIM · Self-Hosted'
-}
+/** Re-exported for existing import sites (modelTreeview, lmcProvider, …). */
+export { SOURCE_LABELS }
 
 export class ModelManager implements vscode.Disposable {
   private readonly _onDidChange = new vscode.EventEmitter<void>()
@@ -171,24 +169,31 @@ export class ModelManager implements vscode.Disposable {
     return added
   }
 
-  /** Resolves the model from a tree item context value. */
-  fromTreeItem(item?: vscode.TreeItem): ManagedModel | undefined {
-    const match = (item?.contextValue ?? '').match(/^model:(\w+):(.+)$/)
-    return match ? this.get(`${match[1]}:${match[2]}`) : undefined
+  /** Resolves the managed model behind a tree command argument. */
+  resolveModel(arg?: ModelArgument): ManagedModel | undefined {
+    if (typeof arg === 'string') return this.get(arg)
+    if (!arg || typeof arg !== 'object') return undefined
+    if (arg instanceof VidiaItem)
+      return arg.kind === 'model' && arg.model ? this.get(arg.model.key) ?? arg.model : undefined
+    return 'key' in arg ? this.get(arg.key) : undefined
   }
 
   /** Removes a model from the managed list (stops its NIM container if any). */
-  async removeModel(item?: vscode.TreeItem, nim?: NimManager): Promise<void> {
-    const m = this.fromTreeItem(item)
-    if (!m) return
+  async removeModel(arg?: ModelArgument, nim?: NimManager): Promise<void> {
+    const m = this.resolveModel(arg)
+    if (!m || !this.get(m.key)) {
+      vscode.window.showWarningMessage(
+        'VIDIA: could not resolve the model to remove. Refresh the view and try again.')
+      return
+    }
     if (m.source === 'nim' && nim) await nim.stop(m, true)
     this.remove(m.key)
     vscode.window.showInformationMessage(`Removed ${m.modelId}.`)
   }
 
-  /** Sets the active chat model, optionally preselected from a tree item. */
-  async selectChatModel(item?: vscode.TreeItem): Promise<void> {
-    const m = this.fromTreeItem(item)
+  /** Sets the active chat model, optionally preselected from a tree argument. */
+  async selectChatModel(arg?: ModelArgument): Promise<void> {
+    const m = this.resolveModel(arg)
     const all = this.all()
     const picked = m ?? (await vscode.window.showQuickPick(
       all.map(x => ({ label: x.name, description: x.modelId, model: x })),
@@ -199,8 +204,8 @@ export class ModelManager implements vscode.Disposable {
   }
 
   /** Sends a tiny completion to verify the model endpoint works. */
-  async testModel(item?: vscode.TreeItem): Promise<void> {
-    const m = this.fromTreeItem(item)
+  async testModel(arg?: ModelArgument): Promise<void> {
+    const m = this.resolveModel(arg)
     if (!m) return
     if (!this.client) throw new Error('VIDIA client is not initialized yet.')
     try {

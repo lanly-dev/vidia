@@ -1,8 +1,9 @@
-import { commands, ExtensionContext, TreeItem, window, Disposable } from 'vscode'
+import { commands, ExtensionContext, window, Disposable } from 'vscode'
 
 import ModelsTreeProvider from './modelTreeview'
 import Server from './server'
 import { ModelDecorationProvider } from './modelDecorations'
+import type { ModelArgument } from './types'
 
 export async function activate(context: ExtensionContext) {
   const rc = commands.registerCommand
@@ -23,12 +24,14 @@ export async function activate(context: ExtensionContext) {
   const dDecorations = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
   const d1 = rc('vidia.internal.addModel', (sourceArg?: string) => server.addModel(p, sourceArg))
-  const d2 = rc('vidia.ncp.removeModelItem', (item?: TreeItem) => server.removeModel(p, item))
-  const d3 = rc('vidia.ncp.setChatModelItem', (item?: TreeItem) => server.pickChatModel(p, item))
-  const d4 = rc('vidia.ncp.testModelItem', (item?: TreeItem) => server.testModel(p, item))
-  const d5 = rc('vidia.ncp.startNimItem', (item?: TreeItem) => server.startNim(p, item))
-  const d6 = rc('vidia.ncp.stopNimItem', (item?: TreeItem) => server.stopNim(p, item))
-  const d7 = rc('vidia.ncp.showNimLogsItem', (item?: TreeItem) => server.showNimLogs(p, item))
+  // Tree commands receive the VidiaItem itself (context menu) or the model key
+  // (row click); the argument is forwarded as-is and resolved by ModelManager.
+  const d2 = rc('vidia.ncp.removeModelItem', (arg?: ModelArgument) => server.removeModel(p, arg))
+  const d3 = rc('vidia.ncp.setChatModelItem', (arg?: ModelArgument) => server.pickChatModel(p, arg))
+  const d4 = rc('vidia.ncp.testModelItem', (arg?: ModelArgument) => server.testModel(p, arg))
+  const d5 = rc('vidia.ncp.startNimItem', (arg?: ModelArgument) => server.startNim(p, arg))
+  const d6 = rc('vidia.ncp.stopNimItem', (arg?: ModelArgument) => server.stopNim(p, arg))
+  const d7 = rc('vidia.ncp.showNimLogsItem', (arg?: ModelArgument) => server.showNimLogs(p, arg))
 
   const d8 = rc('vidia.setNvidiaApiKey', () => server.setNvidiaApiKey(p))
   const d9 = rc('vidia.setNgcApiKey', () => server.setNgcApiKey(p))

@@ -1,22 +1,17 @@
 import * as vscode from 'vscode'
 
-import { ManagedModel, ModelSource } from './types'
-import { ModelDecorationProvider } from './modelDecorations'
-import { ModelManager, SOURCE_LABELS } from './modelManager'
-import { NimManager } from './nimManager'
+import type { ManagedModel, ModelSource } from './types'
+import { VidiaItem } from './vidiaTreeItem'
+import type { ModelManager } from './modelManager'
+import { SOURCE_LABELS } from './modelManager'
+import type { NimManager } from './nimManager'
 import { refreshEvents } from './events'
 import type { SecretManager } from './secretManager'
 
-type Node = SetupNode | GroupNode | ModelNode | MessageNode
 
-interface SetupNode { kind: 'setup' }
-interface GroupNode { kind: 'group', source: ModelSource, label: string }
-interface ModelNode { kind: 'model', model: ManagedModel }
-interface MessageNode { kind: 'message', label: string }
-
-export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node> {
+export default class ModelsTreeProvider implements vscode.TreeDataProvider<VidiaItem> {
   private static instance?: ModelsTreeProvider
-  private readonly _onDidChangeTreeData = new vscode.EventEmitter<Node | undefined>()
+  private readonly _onDidChangeTreeData = new vscode.EventEmitter<VidiaItem | undefined>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   /** Singleton factory (audio-lab style). */
@@ -30,7 +25,6 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
     private readonly nimManager: NimManager,
     private readonly secretManager: SecretManager
   ) {
-    // Any part of the extension can fire refreshEvents.fire() to re-query the tree.
     refreshEvents.onDidRequestRefresh(() => this.refresh())
   }
 
@@ -39,67 +33,29 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
   /** Refreshes the server/model status section of the tree. */
   refreshStatus(): void { this.refresh() }
 
-  /**
-   * Returns the key of the currently selected chat model, or undefined if none is set.
-   */
   private get selectedModelKey(): string | undefined {
     return vscode.workspace.getConfiguration('vidia').get<string>('chatModel', '')
   }
 
-  getTreeItem(node: Node): vscode.TreeItem {
-    if (node.kind === 'setup') {
-      const item = new vscode.TreeItem('Set your NVIDIA API key to get started',
-        vscode.TreeItemCollapsibleState.None)
-      item.description = 'Click here to enter your key'
-      item.tooltip = new vscode.MarkdownString(
-        '**No NVIDIA API key found.**\n\nClick this row to paste your API key (nvapi-…).\n\n' +
-        'No key yet? Use the $(globe) button on the right to create a free one on ' +
-        '[build.nvidia.com](https://build.nvidia.com/explore/discover).')
-      item.contextValue = 'setup'
-      item.iconPath = new vscode.ThemeIcon('key')
-      // Clicking the row opens the key input field; the inline $(globe) button
-      // (see package.json view/item/context) opens the key portal website.
-      item.command = { command: 'vidia.setNvidiaApiKey', title: 'Set NVIDIA API Key' }
-      return item
-    }
-    if (node.kind === 'group') {
-      const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.Expanded)
-      item.contextValue = `group:${node.source}`
-      item.iconPath = new vscode.ThemeIcon(
-        node.source === 'cloud' ? 'cloud' : node.source === 'nim' ? 'vm-active' : 'desktop-download')
-      return item
-    }
-    if (node.kind === 'message') {
-      const item = new vscode.TreeItem(node.label, vscode.TreeItemCollapsibleState.None)
-      item.contextValue = 'message'
-      return item
-    }
-    const m = node.model
-    const isActive = this.selectedModelKey === m.key
-    const item = new vscode.TreeItem(m.name, vscode.TreeItemCollapsibleState.None)
-    item.resourceUri = ModelDecorationProvider.uriFor(m.modelId, isActive)
-    item.description = `${m.publisher} · ${m.source}`
-    item.tooltip = new vscode.MarkdownString(`**${m.modelId}**\n\n- Source: ${SOURCE_LABELS[m.source]}` +
-      (m.nimImage ? `\n- Image: \`${m.nimImage}\`` : '') + (m.nimPort ? `\n- Port: ${m.nimPort}` : ''))
-    item.contextValue = `model:${m.source}:${m.modelId}`
-    item.iconPath = new vscode.ThemeIcon(
-      m.source === 'cloud' ? 'cloud' : m.source === 'nim' ? 'server-process' : 'code')
-    item.command = { command: 'vidia.ncp.setChatModelItem', title: 'Use for Chat', arguments: [item] }
-
-    if (isActive) item.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green'))
-    return item
+  /** The node already carries everything the item needs; build it lazily here. */
+  getTreeItem(node: VidiaItem): vscode.TreeItem {
+    return node.toTreeItem(this.selectedModelKey, 'vidia.ncp.setChatModelItem')
   }
 
-  async getChildren(element?: Node): Promise<Node[]> {
+  async getChildren(element?: VidiaItem): Promise<VidiaItem[]> {
     if (!element) {
-      // Show a top-level setup item while no NVIDIA API key is stored yet.
-      const nodes: Node[] = []
-      if (!await this.secretManager.getNvidiaKey()) nodes.push({ kind: 'setup' })
-      return nodes.concat((['cloud', 'nim', 'local'] as ModelSource[]).map(source => ({
-        kind: 'group', source, label: SOURCE_LABELS[source]
-      } as GroupNode)))
+      const nodes: VidiaItem[] = []
+      if (!await this.secretManager.getNvidiaKey()) {
+        nodes.push(new VidiaItem('setup', 'Set your NVIDIA API key to get started',
+          vscode.TreeItemCollapsibleState.None))
+      }
+      for (const source of ['cloud', 'nim', 'local'] as ModelSource[]) {
+        nodes.push(new VidiaItem('group', SOURCE_LABELS[source],
+          vscode.TreeItemCollapsibleState.Expanded, { source }))
+      }
+      return nodes
     }
-    if (element.kind !== 'group') return []
+    if (element.kind !== 'group' || !element.source) return []
     const models = this.modelManager.all().filter(m => m.source === element.source)
       .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
     if (models.length === 0) {
@@ -107,14 +63,14 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Node>
         ? 'No models. Use the + button to add one.'
         : element.source === 'nim' ? 'No NIM models. Add one and run its container.'
           : 'No local models. Add one and point to your local runtime.'
-      return [{ kind: 'message', label: hint } as MessageNode]
+      return [new VidiaItem('message', hint, vscode.TreeItemCollapsibleState.None)]
     }
-    if (element.source === 'nim') {
-      for (const m of models) {
-        const running = await this.nimManager.isRunning(m);
-        (m as ManagedModel & { running?: boolean }).running = running
-      }
+    const items: VidiaItem[] = []
+    for (const m of models) {
+      const running = element.source === 'nim' ? await this.nimManager.isRunning(m) : false
+      items.push(new VidiaItem('model', m.name, vscode.TreeItemCollapsibleState.None,
+        { model: m, source: m.source, running }))
     }
-    return models.map(m => ({ kind: 'model', model: m } as ModelNode))
+    return items
   }
 }

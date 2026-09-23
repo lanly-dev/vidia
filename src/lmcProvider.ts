@@ -1,7 +1,7 @@
 import * as vscode from 'vscode'
-import { ChatMessage, ManagedModel } from './types'
-import { ModelManager } from './modelManager'
-import { NvidiaClient } from './nvidiaClient'
+import type { ChatMessage, ManagedModel } from './types'
+import type { ModelManager } from './modelManager'
+import type { NvidiaClient } from './nvidiaClient'
 
 export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
   readonly onDidChangeLanguageModelChatInformation: vscode.Event<void>

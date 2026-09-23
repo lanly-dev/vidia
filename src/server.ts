@@ -1,11 +1,11 @@
-import { Disposable, ExtensionContext, OutputChannel, TreeItem, Uri, env, window, commands } from 'vscode'
+import { Disposable, ExtensionContext, OutputChannel, Uri, env, window, commands } from 'vscode'
 
 import { ModelManager } from './modelManager'
 import { NimManager } from './nimManager'
 import { NvidiaClient } from './nvidiaClient'
 import { registerChatParticipant } from './chatParticipant'
 import { SecretManager } from './secretManager'
-import { Services } from './types'
+import type { ModelArgument, Services } from './types'
 import { VidiaLmProvider } from './lmcProvider'
 import ModelsTreeProvider from './modelTreeview'
 
@@ -20,13 +20,15 @@ export default class Server {
   private disposable: Disposable[] = []
 
   constructor(context: ExtensionContext) {
+    this.logs = window.createOutputChannel('VIDIA', { log: true })
+    this.nimLog = window.createOutputChannel('VIDIA · NIM')
     this.secrets = new SecretManager(context)
     this.client = new NvidiaClient(() => this.secrets.getNvidiaKey(),
       (msg) => this.logs.appendLine(msg)
     )
     this.nim = new NimManager(
       () => this.secrets.getNgcKey(),
-      (item) => this.manager.fromTreeItem(item),
+      (arg) => this.manager.resolveModel(arg),
       (msg) => this.nimLog.appendLine(msg)
     )
     this.manager = new ModelManager(
@@ -34,8 +36,6 @@ export default class Server {
       (source) => source === 'nim' ? this.secrets.getNgcKey() : this.secrets.getNvidiaKey()
     )
     this.manager.setClient(this.client)
-    this.logs = window.createOutputChannel('VIDIA', { log: true })
-    this.nimLog = window.createOutputChannel('VIDIA · NIM')
 
     this.disposable.push(this.logs)
     this.disposable.push(this.nimLog)
@@ -64,34 +64,37 @@ export default class Server {
     return [provider.register(), registerChatParticipant(context, 'vidia')]
   }
 
-  /** Model operations */
+  /**
+   * Model operations. `arg` is the VidiaItem handed over for `view/item/context`
+   * entries, or the model key passed by `TreeItem.command` (see `ModelArgument`).
+   */
   async addModel(_p: ModelsTreeProvider, sourceArg?: string): Promise<void> {
     await this.manager.addModelFlow(sourceArg as never)
   }
 
-  async removeModel(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-    await this.manager.removeModel(item, this.nim)
+  async removeModel(_p: ModelsTreeProvider, arg?: ModelArgument): Promise<void> {
+    await this.manager.removeModel(arg, this.nim)
   }
 
-  async pickChatModel(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-    await this.manager.selectChatModel(item)
+  async pickChatModel(_p: ModelsTreeProvider, arg?: ModelArgument): Promise<void> {
+    await this.manager.selectChatModel(arg)
   }
 
-  async testModel(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-    await this.manager.testModel(item)
+  async testModel(_p: ModelsTreeProvider, arg?: ModelArgument): Promise<void> {
+    await this.manager.testModel(arg)
   }
 
   /** NIM container operations */
-  async startNim(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-    await this.nim.startWithProgress(item)
+  async startNim(_p: ModelsTreeProvider, arg?: ModelArgument): Promise<void> {
+    await this.nim.startWithProgress(arg)
   }
 
-  async stopNim(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-    await this.nim.stopWithFeedback(item)
+  async stopNim(_p: ModelsTreeProvider, arg?: ModelArgument): Promise<void> {
+    await this.nim.stopWithFeedback(arg)
   }
 
-  async showNimLogs(_p: ModelsTreeProvider, item?: TreeItem): Promise<void> {
-    await this.nim.showLogs(item, this.nimLog)
+  async showNimLogs(_p: ModelsTreeProvider, arg?: ModelArgument): Promise<void> {
+    await this.nim.showLogs(arg, this.nimLog)
   }
 
   /** Settings operations */

@@ -1,8 +1,9 @@
-import { ModelManager } from './modelManager'
-import { NimManager } from './nimManager'
-import { NvidiaClient } from './nvidiaClient'
-import { OutputChannel } from 'vscode'
-import { SecretManager } from './secretManager'
+import type { ModelManager } from './modelManager'
+import type { NimManager } from './nimManager'
+import type { NvidiaClient } from './nvidiaClient'
+import type { OutputChannel } from 'vscode'
+import type { SecretManager } from './secretManager'
+import type { VidiaItem } from './vidiaTreeItem'
 
 export type ModelSource = 'cloud' | 'nim' | 'local'
 
@@ -37,6 +38,13 @@ export interface ManagedModel {
 	/** Host port of the local runtime (lemonade/ollama/custom). */
 	localPort?: number
 }
+
+/**
+ * Argument a model command receives from the tree view (or programmatic callers).
+ * The tree view hands over the VidiaItem itself, row clicks pass the model key,
+ * and programmatic callers may pass a ManagedModel (or nothing at all).
+ */
+export type ModelArgument = VidiaItem | ManagedModel | string | undefined
 
 export interface ChatMessage {
 	role: 'system' | 'user' | 'assistant'

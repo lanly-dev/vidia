@@ -1,5 +1,5 @@
 import * as vscode from 'vscode'
-import { CatalogModel, ChatMessage, ChatTarget, StreamCallbacks } from './types'
+import type { CatalogModel, ChatMessage, ChatTarget, StreamCallbacks } from './types'
 
 export const DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1'
 

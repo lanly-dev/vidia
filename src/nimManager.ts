@@ -1,18 +1,18 @@
 import * as vscode from 'vscode'
 import * as cp from 'child_process'
-import { ManagedModel } from './types'
+import type { ManagedModel, ModelArgument } from './types'
 import { refreshEvents } from './events'
 
 export class NimManager {
   constructor(
 		private readonly getNgcKey: () => string | undefined | Thenable<string | undefined>,
-		private readonly fromTreeItem: (item?: vscode.TreeItem) => ManagedModel | undefined,
+		private readonly resolveModel: (arg?: ModelArgument) => ManagedModel | undefined,
 		private readonly log: (msg: string) => void
   ) { }
 
   /** User flow: start the container for the selected NIM model with progress UI. */
-  async startWithProgress(item?: vscode.TreeItem): Promise<void> {
-    const m = this.fromTreeItem(item)
+  async startWithProgress(arg?: ModelArgument): Promise<void> {
+    const m = this.resolveModel(arg)
     if (!m) return
     await vscode.window.withProgress(
       {
@@ -33,8 +33,8 @@ export class NimManager {
   }
 
   /** User flow: stop the container for the selected NIM model. */
-  async stopWithFeedback(item?: vscode.TreeItem): Promise<void> {
-    const m = this.fromTreeItem(item)
+  async stopWithFeedback(arg?: ModelArgument): Promise<void> {
+    const m = this.resolveModel(arg)
     if (!m) return
     await this.stop(m)
     refreshEvents.fire()
@@ -42,8 +42,8 @@ export class NimManager {
   }
 
   /** User flow: stream container logs into the NIM output channel. */
-  async showLogs(item?: vscode.TreeItem, channel?: vscode.OutputChannel): Promise<void> {
-    const m = this.fromTreeItem(item)
+  async showLogs(arg?: ModelArgument, channel?: vscode.OutputChannel): Promise<void> {
+    const m = this.resolveModel(arg)
     if (m && channel) await this.logs(m, channel)
   }
 
