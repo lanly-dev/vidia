@@ -184,12 +184,7 @@ export class ModelManager implements vscode.Disposable {
       catalog = []
     }
     if (catalog.length === 0) {
-      const retry = await vscode.window.showErrorMessage(
-        'VIDIA: could not reach the model endpoint and no cached catalog exists.',
-        'Refresh Catalog', 'Open build.nvidia.com')
-      if (retry === 'Refresh Catalog')  await this.refreshCatalogFlow()
-      else if (retry === 'Open build.nvidia.com')
-        void vscode.env.openExternal(vscode.Uri.parse('https://build.nvidia.com/models'))
+      await this.promptEmptyCatalog()
       return undefined
     }
     const groups = [...new Set(catalog.map(m => m.publisher))]
@@ -224,7 +219,7 @@ export class ModelManager implements vscode.Disposable {
       const startNow = await vscode.window.showInformationMessage(
         `Added ${m.id} as NIM. Start the container now?`, 'Yes', 'No')
       if (startNow === 'Yes')
-        await vscode.commands.executeCommand('vidia.nim.start', { contextValue: `model:nim:${m.id}` })
+        await vscode.commands.executeCommand('vidia.ncp.startNimItem', added)
     } else if (source === 'local') {
       const portRaw = await vscode.window.showInputBox({
         prompt: 'Port of your local OpenAI-compatible runtime (lemonade/ollama/NIM)',
@@ -245,6 +240,103 @@ export class ModelManager implements vscode.Disposable {
         `${m.id} added using the free NVIDIA endpoint. It is now available in the chat model picker.`)
     }
     return added
+  }
+
+  /** Shown when the catalog is empty/unavailable; shared by the add flows. */
+  private async promptEmptyCatalog(): Promise<void> {
+    const retry = await vscode.window.showErrorMessage(
+      'VIDIA: could not reach the model endpoint and no cached catalog exists.',
+      'Refresh Catalog', 'Open build.nvidia.com')
+    if (retry === 'Refresh Catalog')  await this.refreshCatalogFlow()
+    else if (retry === 'Open build.nvidia.com')
+      void vscode.env.openExternal(vscode.Uri.parse('https://build.nvidia.com/models'))
+  }
+
+  /**
+   * Inline "+" on the NIM group header: verifies Docker + NVIDIA GPU first
+   * (the header shows a warning icon while either is missing), then offers
+   * the cloud catalog as a pick-list of NIM containers to download
+   * (`nvcr.io/nim/<id>:latest`) and optionally start right away.
+   */
+  async addNimFlow(nim?: NimManager): Promise<void> {
+    // 1. Preflight — forced so a fresh Docker/driver install is picked up now.
+    const env = await nim?.checkEnv(true)
+    refreshEvents.fire()
+    if (env && !env.ok) {
+      const choice = await vscode.window.showErrorMessage(
+        `Cannot run NIM containers yet: ${env.issues.join('  |  ')}`,
+        'Install Docker', 'Install NVIDIA Driver')
+      if (choice === 'Install Docker')
+        void vscode.env.openExternal(vscode.Uri.parse('https://www.docker.com/products/docker-desktop/'))
+      else if (choice === 'Install NVIDIA Driver')
+        void vscode.env.openExternal(vscode.Uri.parse('https://www.nvidia.com/Download/index.aspx'))
+      return
+    }
+
+    // 2. Catalog → pick-list (catalog ids map 1:1 to NIM image paths).
+    let catalog: CatalogModel[] = []
+    try {
+      catalog = await this.getCatalog(await this.getApiKey('cloud'))
+    } catch {
+      catalog = []
+    }
+    if (catalog.length === 0) {
+      await this.promptEmptyCatalog()
+      return
+    }
+
+    interface NimPick extends vscode.QuickPickItem {
+      custom?: boolean
+      model?: CatalogModel
+    }
+    const pick = await vscode.window.showQuickPick<NimPick>(
+      [
+        ...catalog.map(c => ({
+          label: c.name,
+          description: c.id,
+          model: c
+        })),
+        { kind: vscode.QuickPickItemKind.Separator, label: '' },
+        { label: 'Custom container image…', description: 'type any NIM image (nvcr.io/nim/…)', custom: true }
+      ],
+      {
+        title: 'Add NIM Model',
+        placeHolder: 'Pick a model to download & run as a NIM container',
+        matchOnDescription: true
+      })
+    if (!pick) return
+
+    let modelId: string
+    let image: string
+    let name: string
+    let publisher: string
+    if (pick.custom) {
+      const input = await vscode.window.showInputBox({
+        prompt: 'NIM container image to run',
+        placeHolder: 'nvcr.io/nim/<publisher>/<model>:latest',
+        ignoreFocusOut: true
+      })
+      if (!input?.trim()) return
+      image = input.trim()
+      // Model id served by NIM = image path after "nvcr.io/nim/" without the tag.
+      modelId = image.replace(/^.*nvcr\.io\/nim\//, '').replace(/:[^:/]+$/, '') || image
+      name = modelId.split('/').pop() ?? modelId
+      publisher = modelId.includes('/') ? modelId.slice(0, modelId.indexOf('/')) : 'custom'
+    } else if (pick.model) {
+      modelId = pick.model.id
+      image = `nvcr.io/nim/${modelId}:latest`
+      name = pick.model.name
+      publisher = pick.model.publisher
+    } else
+      return
+
+    // 3. Persist, then offer to pull + run the container immediately.
+    const added = this.add({ source: 'nim', modelId, name, publisher, contextLength: 131072, nimImage: image })
+    const start = await vscode.window.showInformationMessage(
+      `Added ${modelId}. Start its NIM container now? Docker will download ${image} on first run.`,
+      'Start Now', 'Later')
+    if (start === 'Start Now' && nim)
+      await nim.startWithProgress(added)
   }
 
   /** Resolves the managed model behind a tree command argument. */

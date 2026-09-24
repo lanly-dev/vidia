@@ -69,6 +69,12 @@
         "icon": "$(add)"
       },
       {
+        "command": "vidia.ncp.addNimModelItem",
+        "title": "Add NIM Model",
+        "category": "VIDIA",
+        "icon": "$(add)"
+      },
+      {
         "command": "vidia.refreshServerStatus",
         "title": "Refresh Models",
         "category": "VIDIA",
@@ -172,6 +178,11 @@
       ],
       "view/item/context": [
         {
+          "command": "vidia.ncp.addNimModelItem",
+          "when": "view == vidia.modelsExplorer && viewItem == group:nim",
+          "group": "inline@1"
+        },
+        {
           "command": "vidia.openBuildNvidia",
           "when": "view == vidia.modelsExplorer && viewItem == setup",
           "group": "inline@1",
@@ -237,6 +248,10 @@
         },
         {
           "command": "vidia.ncp.testModelItem",
+          "when": "false"
+        },
+        {
+          "command": "vidia.ncp.addNimModelItem",
           "when": "false"
         }
       ]

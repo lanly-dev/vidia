@@ -51,6 +51,37 @@ export class NimManager {
     return vscode.workspace.getConfiguration('vidia.nim').get<string>('containerRuntime', 'auto')
   }
 
+  /** Cached Docker/GPU preflight used by the tree header and the add-NIM flow. */
+  private envCache?: { ok: boolean, issues: string[], checkedAt: number }
+
+  /**
+   * Verifies that a container runtime (Docker/Podman) and an NVIDIA GPU are
+   * present. Cached for a minute so tree renders stay snappy; pass `force`
+   * after the user had a chance to install Docker/drivers.
+   */
+  async checkEnv(force = false): Promise<{ ok: boolean, issues: string[] }> {
+    const TTL_MS = 60_000
+    if (!force && this.envCache && Date.now() - this.envCache.checkedAt < TTL_MS)
+      return this.envCache
+    const issues: string[] = []
+    if (!await this.detectRuntime()) {
+      issues.push('Docker (or Podman) not found — install Docker Desktop: ' +
+        'https://www.docker.com/products/docker-desktop/')
+    }
+    if (!await this.hasNvidiaGpu())
+      issues.push('No NVIDIA GPU detected — "nvidia-smi" is missing or failing; install/update the NVIDIA driver.')
+    this.envCache = { ok: issues.length === 0, issues, checkedAt: Date.now() }
+    return this.envCache
+  }
+
+  /** True when `nvidia-smi -L` runs and lists at least one GPU. */
+  private hasNvidiaGpu(): Promise<boolean> {
+    return new Promise(resolve => {
+      cp.exec('nvidia-smi -L', { windowsHide: true },
+        (err, stdout) => resolve(!err && /GPU/i.test(stdout)))
+    })
+  }
+
   private async detectRuntime(): Promise<string | undefined> {
     const candidates = this.runtime === 'auto' ? ['docker', 'podman'] : [this.runtime]
     for (const cmd of candidates)

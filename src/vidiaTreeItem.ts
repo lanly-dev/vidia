@@ -33,12 +33,14 @@ export class VidiaItem {
   readonly running?: boolean
   /** Latest probe result for the model, if the user ever tested it. */
   readonly probe?: ModelProbe
+  /** Prerequisite failures for group rows (e.g. missing Docker / NVIDIA GPU). */
+  readonly envIssues?: string[]
 
   constructor(
     kind: VidiaItem['kind'],
     label: string,
     collapsible: vscode.TreeItemCollapsibleState,
-    opts?: { model?: ManagedModel, source?: VidiaSource, running?: boolean, probe?: ModelProbe }
+    opts?: { model?: ManagedModel, source?: VidiaSource, running?: boolean, probe?: ModelProbe, envIssues?: string[] }
   ) {
     this.kind = kind
     this.label = label
@@ -47,6 +49,7 @@ export class VidiaItem {
     this.source = opts?.source
     this.running = opts?.running
     this.probe = opts?.probe
+    this.envIssues = opts?.envIssues
   }
 
   toTreeItem(selectedModelKey: string | undefined, setChatCommand: string): vscode.TreeItem {
@@ -64,6 +67,15 @@ export class VidiaItem {
       const source = this.source ?? 'cloud'
       item.id = `group:${source}`
       item.contextValue = `group:${source}`
+      // Prerequisite failures (no Docker / no NVIDIA GPU) turn the header
+      // into a warning row; tooltip lists exactly what is missing.
+      if (this.envIssues?.length) {
+        item.iconPath = new vscode.ThemeIcon('warning',
+          new vscode.ThemeColor('problemsWarningIcon.foreground'))
+        item.tooltip = this.envIssues.join('\n')
+        item.description = 'setup required'
+        return item
+      }
       item.iconPath = new vscode.ThemeIcon(
         source === 'cloud' ? 'cloud' : source === 'nim' ? 'vm-active' : 'desktop-download')
       return item

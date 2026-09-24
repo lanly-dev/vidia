@@ -72,6 +72,11 @@ export default class Server {
     await this.manager.addModelFlow(sourceArg as never)
   }
 
+  /** Inline "+" on the NIM group header: Docker/GPU preflight + catalog pick-list. */
+  async addNim(_p: ModelsTreeProvider): Promise<void> {
+    await this.manager.addNimFlow(this.nim)
+  }
+
   async removeModel(_p: ModelsTreeProvider, arg?: ModelArgument): Promise<void> {
     await this.manager.removeModel(arg, this.nim)
   }
