@@ -1,7 +1,6 @@
 import type { ModelManager } from './modelManager'
 import type { NimManager } from './nimManager'
 import type { NvidiaClient } from './nvidiaClient'
-import type { OutputChannel } from 'vscode'
 import type { SecretManager } from './secretManager'
 import type { VidiaItem } from './vidiaTreeItem'
 
@@ -16,7 +15,6 @@ export interface Services {
 	client: NvidiaClient
 	manager: ModelManager
 	nim: NimManager
-	nimLog: OutputChannel
 }
 
 /** Health state of a managed model, derived from probing the endpoint. */

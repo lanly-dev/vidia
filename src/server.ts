@@ -1,27 +1,26 @@
-import { Disposable, ExtensionContext, OutputChannel, Uri, env, window, commands } from 'vscode'
+import { Disposable, ExtensionContext, LogOutputChannel, Uri, env, window, commands } from 'vscode'
 
 import { ModelManager } from './modelManager'
 import { NimManager } from './nimManager'
 import { NvidiaClient } from './nvidiaClient'
 import { registerChatParticipant } from './chatParticipant'
 import { SecretManager } from './secretManager'
-import type { ModelArgument, Services } from './types'
 import { VidiaLmProvider } from './lmcProvider'
 import ModelsTreeProvider from './modelTreeview'
+import type { ModelArgument, Services } from './types'
 
 /** Main server class encapsulating all extension services */
 export default class Server {
-  public secrets: SecretManager
   public client: NvidiaClient
+  public logs: LogOutputChannel
   public manager: ModelManager
   public nim: NimManager
-  public nimLog: OutputChannel
-  public logs: OutputChannel
+  public secrets: SecretManager
+
   private disposable: Disposable[] = []
 
   constructor(context: ExtensionContext) {
     this.logs = window.createOutputChannel('VIDIA', { log: true })
-    this.nimLog = window.createOutputChannel('VIDIA · NIM')
     this.secrets = new SecretManager(context)
     this.client = new NvidiaClient(() => this.secrets.getNvidiaKey(),
       (msg) => this.logs.appendLine(msg)
@@ -29,7 +28,7 @@ export default class Server {
     this.nim = new NimManager(
       () => this.secrets.getNgcKey(),
       (arg) => this.manager.resolveModel(arg),
-      (msg) => this.nimLog.appendLine(msg)
+      (msg) => this.logs.appendLine(msg)
     )
     this.manager = new ModelManager(
       context,
@@ -38,7 +37,6 @@ export default class Server {
     this.manager.setClient(this.client)
 
     this.disposable.push(this.logs)
-    this.disposable.push(this.nimLog)
     this.disposable.push(this.manager)
   }
 
@@ -54,7 +52,7 @@ export default class Server {
 
   /** Get a deep copy of the services object */
   getServices(): Services {
-    return { secrets: this.secrets, client: this.client, manager: this.manager, nim: this.nim, nimLog: this.nimLog }
+    return { secrets: this.secrets, client: this.client, manager: this.manager, nim: this.nim }
   }
 
   /** Register the chat harness */
@@ -99,7 +97,7 @@ export default class Server {
   }
 
   async showNimLogs(_p: ModelsTreeProvider, arg?: ModelArgument): Promise<void> {
-    await this.nim.showLogs(arg, this.nimLog)
+    await this.nim.showLogs(arg, this.logs)
   }
 
   /** Settings operations */
