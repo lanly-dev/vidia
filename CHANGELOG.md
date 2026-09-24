@@ -7,3 +7,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [Unreleased]
 
 - Initial release
+- Added `VIDIA: Clear API Key` command (also a `$(clear-all)` button in the
+  Models Explorer title bar) to remove stored NVIDIA/NGC API keys from
+  SecretStorage with confirmation.

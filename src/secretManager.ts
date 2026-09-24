@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import { refreshEvents } from './events'
 import { friendlyHttpError } from './nvidiaClient'
 
 const NVIDIA_KEY = 'vidia.nvapiKey'
@@ -117,6 +118,54 @@ export class SecretManager {
 
   async changeNvidiaKey(): Promise<void> {
     await this.store(NVIDIA_KEY, 'Change NVIDIA API Key', 'https://build.nvidia.com/explore/discover')
+  }
+
+  /**
+   * Removes stored API key(s) from SecretStorage after confirmation.
+   * When both the NVIDIA and NGC keys exist, a quick pick asks which one to
+   * drop (with a "Clear all stored keys" option). Afterwards the
+   * `vidia:setupKeyExists` context key is re-synced (hiding the Change/Clear
+   * buttons) and the tree is refreshed so the setup row reappears.
+   */
+  async clearApiKey(): Promise<void> {
+    const entries: { label: string, description: string, id: 'nvidia' | 'ngc' }[] = []
+    if (await this.context.secrets.get(NVIDIA_KEY))
+      entries.push({ label: '$(key) NVIDIA API key', description: 'nvapi-… · build.nvidia.com', id: 'nvidia' })
+    if (await this.context.secrets.get(NGC_KEY))
+      entries.push({ label: '$(key) NGC API key', description: 'ngc-… · org.ngc.nvidia.com', id: 'ngc' })
+    if (entries.length === 0) {
+      vscode.window.showInformationMessage('No API key is stored — nothing to clear.', { modal: false })
+      return
+    }
+
+    // Only one key stored → clear it directly; otherwise ask which one.
+    let ids: Array<'nvidia' | 'ngc'> = [entries[0].id]
+    if (entries.length > 1) {
+      const pick = await vscode.window.showQuickPick(
+        [...entries, { label: '$(trash) Clear all stored keys', description: 'NVIDIA + NGC', id: 'all' as const }],
+        { placeHolder: 'Select the API key to clear (removed from VS Code SecretStorage)' })
+      if (!pick) return
+      ids = pick.id === 'all' ? ['nvidia', 'ngc'] : [pick.id]
+    }
+
+    const what = ids.length > 1
+      ? 'both stored API keys'
+      : ids[0] === 'nvidia' ? 'the NVIDIA API key' : 'the NGC API key'
+    const confirm = await vscode.window.showWarningMessage(
+      `Clear ${what}?`,
+      {
+        modal: true,
+        detail: 'The key is deleted from VS Code SecretStorage. VIDIA will ask for it again the next time it needs one.'
+      },
+      'Clear Key')
+    if (!confirm) return
+
+    for (const id of ids)
+      await this.context.secrets.delete(id === 'nvidia' ? NVIDIA_KEY : NGC_KEY)
+    await this.syncKeyExistsContext()
+    refreshEvents.fire()
+    vscode.window.showInformationMessage(
+      `Cleared ${what} from SecretStorage.`, { modal: false })
   }
 
   /** Fallback: validate a key via a tiny chat completion when /models is unavailable. */

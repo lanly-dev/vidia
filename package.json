@@ -146,6 +146,12 @@
         "title": "Refresh Model Catalog",
         "category": "VIDIA",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "vidia.clearApiKey",
+        "title": "Clear API Key",
+        "category": "VIDIA",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -174,6 +180,11 @@
           "command": "vidia.changeNvidiaApiKey",
           "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
           "group": "navigation@4"
+        },
+        {
+          "command": "vidia.clearApiKey",
+          "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [

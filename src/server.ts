@@ -115,6 +115,11 @@ export default class Server {
     await this.secrets.changeNvidiaKey()
   }
 
+  /** Removes the stored API key(s) after confirmation (see SecretManager). */
+  async clearApiKey(_p: ModelsTreeProvider): Promise<void> {
+    await this.secrets.clearApiKey()
+  }
+
   async openBuildNvidia(_p: ModelsTreeProvider): Promise<unknown> {
     return env.openExternal(Uri.parse('https://build.nvidia.com/models'))
   }
