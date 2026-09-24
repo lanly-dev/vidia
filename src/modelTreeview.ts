@@ -56,8 +56,12 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
       return nodes
     }
     if (element.kind !== 'group' || !element.source) return []
+    // Disabled (404 probe) models sink to the bottom; the rest stay sorted.
+    const isDisabled = (key: string): boolean => this.modelManager.getProbe(key)?.status === 'disabled'
     const models = this.modelManager.all().filter(m => m.source === element.source)
-      .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
+      .sort((a, b) =>
+        Number(isDisabled(a.key)) - Number(isDisabled(b.key)) ||
+        a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
     if (models.length === 0) {
       const hint = element.source === 'cloud'
         ? 'No models. Use the + button to add one.'

@@ -80,9 +80,10 @@ export class VidiaItem {
     // No probe record yet → untested (e.g. newly added). 404 probe → disabled.
     const status: ModelStatus = this.probe?.status ?? 'untested'
     const isActive = selectedModelKey === m.key
+    const isDisabled = status === 'disabled'
     item.id = m.key
-    item.resourceUri = ModelDecorationProvider.uriFor(m.modelId, isActive)
-    const statusSuffix = status === 'disabled' ? ' · disabled' : status === 'active' ? ' · active' : ''
+    item.resourceUri = ModelDecorationProvider.uriFor(m.modelId, isActive, isDisabled)
+    const statusSuffix = isDisabled ? ' · disabled' : ''
     item.description = `${m.publisher} · ${m.source}${this.running ? ' · running' : ''}${statusSuffix}`
     item.tooltip = `${m.modelId} (${SOURCE_LABELS[m.source]})${this.running ? ' - running' : ''}` +
       (this.probe
@@ -90,14 +91,12 @@ export class VidiaItem {
         : '\n[untested] Use the inline test button to probe this model.')
     // Untested rows carry the inline Test button; active/disabled rows hide it.
     item.contextValue = `model:${m.source}:${m.modelId}:${status}`
-    item.iconPath = status === 'disabled'
-      ? new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground'))
-      : status === 'active'
-        ? new vscode.ThemeIcon('pass', new vscode.ThemeColor('charts.green'))
-        : isActive
-          ? new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green'))
-          : new vscode.ThemeIcon(
-            m.source === 'cloud' ? 'cloud' : m.source === 'nim' ? 'server-process' : 'code')
+    // No status icons: active/untested rows use the source icon; disabled
+    // rows are greyed out via FileDecoration and show a warning glyph.
+    item.iconPath = isDisabled
+      ? new vscode.ThemeIcon('warning', new vscode.ThemeColor('disabledForeground'))
+      : new vscode.ThemeIcon(
+        m.source === 'cloud' ? 'cloud' : m.source === 'nim' ? 'server-process' : 'code')
     item.command = { command: setChatCommand, title: 'Use for Chat', arguments: [m.key] }
     return item
   }
