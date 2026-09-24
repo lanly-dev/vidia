@@ -1,12 +1,15 @@
 import * as vscode from 'vscode'
-import type { CatalogCache, CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelSource } from './types'
+import type {
+  CatalogCache, CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelProbe, ModelSource
+} from './types'
 import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
-import { DEFAULT_BASE_URL, NvidiaClient } from './nvidiaClient'
+import { DEFAULT_BASE_URL, NvidiaApiError, NvidiaClient } from './nvidiaClient'
 import { refreshEvents } from './events'
 import type { NimManager } from './nimManager'
 
 const STORAGE_KEY = 'vidia.managedModels'
 const CATALOG_KEY = 'vidia.modelCatalog'
+const PROBE_KEY = 'vidia.modelProbes'
 /** Catalog is re-fetched when the cached snapshot is older than this. */
 const CATALOG_TTL_MS = 5 * 24 * 60 * 60 * 1000
 
@@ -76,6 +79,25 @@ export class ModelManager implements vscode.Disposable {
     }
     const port = model.localPort ?? cfg.get<number>('localRuntime.port', 8000)
     return { baseUrl: `http://localhost:${port}/v1`, model: model.modelId }
+  }
+
+  /** Reads the per-model probe log (keyed by managed-model key), if any. */
+  getProbes(): Record<string, ModelProbe> {
+    return this.context.globalState.get<Record<string, ModelProbe>>(PROBE_KEY, {})
+  }
+
+  /** Returns the latest probe for a model key, if the user ever tested it. */
+  getProbe(key: string): ModelProbe | undefined {
+    return this.getProbes()[key]
+  }
+
+  /** Overwrites the probe record for a model key and refreshes the tree. */
+  private saveProbe(key: string, probe: ModelProbe): void {
+    const all = this.getProbes()
+    all[key] = probe
+    void this.context.globalState.update(PROBE_KEY, all)
+    this._onDidChange.fire()
+    refreshEvents.fire()
   }
 
   /** Reads the cached model catalog (endpoint snapshot + timestamp), if any. */
@@ -259,19 +281,31 @@ export class ModelManager implements vscode.Disposable {
     vscode.window.showInformationMessage(`Chat model set to ${picked.modelId} (${SOURCE_LABELS[picked.source]}).`)
   }
 
-  /** Sends a tiny completion to verify the model endpoint works. */
+  /**
+   * Probes the model with "Which model are you?", overwrites its probe log
+   * (timestamp + reply) in globalState, and marks 404s disabled. Newly added
+   * models have no probe (untested) until the user runs this — via the
+   * inline test button or the context menu.
+   */
   async testModel(arg?: ModelArgument): Promise<void> {
     const m = this.resolveModel(arg)
     if (!m) return
     if (!this.client) throw new Error('VIDIA client is not initialized yet.')
     try {
       const target = await this.resolveTarget(m)
-      const answer = await vscode.window.withProgress(
+      const { reply, httpStatus } = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: `Testing ${m.modelId}…` },
-        () => this.client!.testModel(target))
-      vscode.window.showInformationMessage(`${m.modelId} responded: ${answer.slice(0, 80) || '(empty)'}`)
+        () => this.client!.probeModel(target))
+      this.saveProbe(m.key, { testedAt: Date.now(), reply, status: 'active', httpStatus })
+      vscode.window.showInformationMessage(`${m.modelId} responded: ${reply.slice(0, 120) || '(empty)'}`)
     } catch (e) {
-      vscode.window.showErrorMessage(`Test failed: ${e instanceof Error ? e.message : String(e)}`)
+      const status = e instanceof NvidiaApiError ? e.status : undefined
+      const msg = e instanceof Error ? e.message : String(e)
+      // 404 = endpoint has no deployment for this id → mark disabled in tree.
+      this.saveProbe(m.key, {
+        testedAt: Date.now(), reply: msg, status: status === 404 ? 'disabled' : 'untested', httpStatus: status
+      })
+      vscode.window.showErrorMessage(`Test failed: ${msg}`)
     }
   }
 

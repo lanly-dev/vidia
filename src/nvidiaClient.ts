@@ -151,4 +151,32 @@ export class NvidiaClient {
   async testModel(target: ChatTarget): Promise<string> {
     return this.chatStream(target, [{ role: 'user', content: 'Reply with exactly: OK' }], { onDelta: () => undefined })
   }
+
+  /**
+   * Probes a model with "Which model are you?" (non-streaming) and returns
+   * the reply text together with the HTTP status. Throws NvidiaApiError
+   * carrying `status` on transport/HTTP failure so callers can mark 404s.
+   */
+  async probeModel(target: ChatTarget): Promise<{ reply: string, httpStatus: number }> {
+    const res = await fetch(`${target.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: await this.headers(target.apiKey),
+      body: JSON.stringify({
+        model: target.model,
+        messages: [{ role: 'user', content: 'Which model are you?' }],
+        stream: false,
+        temperature: 0,
+        max_tokens: 256
+      })
+    })
+    const body = await res.text()
+    if (!res.ok)  throw new NvidiaApiError(res.status, friendlyHttpError(res.status, body))
+    try {
+      const json = JSON.parse(body) as { choices?: Array<{ message?: { content?: string } }> }
+      const reply = json.choices?.[0]?.message?.content?.trim() ?? ''
+      return { reply, httpStatus: res.status }
+    } catch {
+      throw new NvidiaApiError(res.status, `Unparseable probe response (${res.status}).`)
+    }
+  }
 }

@@ -19,6 +19,18 @@ export interface Services {
 	nimLog: OutputChannel
 }
 
+/** Health state of a managed model, derived from probing the endpoint. */
+export type ModelStatus = 'untested' | 'active' | 'disabled'
+
+/** One probe record per managed model; overwritten on every test. */
+export interface ModelProbe {
+	testedAt: number
+	/** Model's reply text on success, error message on failure. */
+	reply: string
+	status: ModelStatus
+	httpStatus?: number
+}
+
 /** A model managed by the extension (added by the user into one of the three groups). */
 export interface ManagedModel {
 	/** Unique key: `${source}:${modelId}` */

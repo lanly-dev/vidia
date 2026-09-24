@@ -69,7 +69,7 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
     for (const m of models) {
       const running = element.source === 'nim' ? await this.nimManager.isRunning(m) : false
       items.push(new VidiaItem('model', m.name, vscode.TreeItemCollapsibleState.None,
-        { model: m, source: m.source, running }))
+        { model: m, source: m.source, running, probe: this.modelManager.getProbe(m.key) }))
     }
     return items
   }

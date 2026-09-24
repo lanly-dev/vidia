@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 
-import type { ManagedModel } from './types'
+import type { ManagedModel, ModelProbe, ModelStatus } from './types'
 import { ModelDecorationProvider } from './modelDecorations'
 
 export type VidiaSource = 'cloud' | 'nim' | 'local'
@@ -31,12 +31,14 @@ export class VidiaItem {
   readonly source?: VidiaSource
   /** Transient UI state (NIM container running); never persisted. */
   readonly running?: boolean
+  /** Latest probe result for the model, if the user ever tested it. */
+  readonly probe?: ModelProbe
 
   constructor(
     kind: VidiaItem['kind'],
     label: string,
     collapsible: vscode.TreeItemCollapsibleState,
-    opts?: { model?: ManagedModel, source?: VidiaSource, running?: boolean }
+    opts?: { model?: ManagedModel, source?: VidiaSource, running?: boolean, probe?: ModelProbe }
   ) {
     this.kind = kind
     this.label = label
@@ -44,6 +46,7 @@ export class VidiaItem {
     this.model = opts?.model
     this.source = opts?.source
     this.running = opts?.running
+    this.probe = opts?.probe
   }
 
   toTreeItem(selectedModelKey: string | undefined, setChatCommand: string): vscode.TreeItem {
@@ -74,16 +77,27 @@ export class VidiaItem {
       item.contextValue = 'message'
       return item
     }
+    // No probe record yet → untested (e.g. newly added). 404 probe → disabled.
+    const status: ModelStatus = this.probe?.status ?? 'untested'
     const isActive = selectedModelKey === m.key
     item.id = m.key
     item.resourceUri = ModelDecorationProvider.uriFor(m.modelId, isActive)
-    item.description = `${m.publisher} · ${m.source}${this.running ? ' · running' : ''}`
-    item.tooltip = `${m.modelId} (${SOURCE_LABELS[m.source]})${this.running ? ' - running' : ''}`
-    item.contextValue = `model:${m.source}:${m.modelId}`
-    item.iconPath = isActive
-      ? new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green'))
-      : new vscode.ThemeIcon(
-        m.source === 'cloud' ? 'cloud' : m.source === 'nim' ? 'server-process' : 'code')
+    const statusSuffix = status === 'disabled' ? ' · disabled' : status === 'active' ? ' · active' : ''
+    item.description = `${m.publisher} · ${m.source}${this.running ? ' · running' : ''}${statusSuffix}`
+    item.tooltip = `${m.modelId} (${SOURCE_LABELS[m.source]})${this.running ? ' - running' : ''}` +
+      (this.probe
+        ? `\n[${status}] ${new Date(this.probe.testedAt).toLocaleString()}: ${(this.probe.reply || '').slice(0, 300)}`
+        : '\n[untested] Use the inline test button to probe this model.')
+    // Untested rows carry the inline Test button; active/disabled rows hide it.
+    item.contextValue = `model:${m.source}:${m.modelId}:${status}`
+    item.iconPath = status === 'disabled'
+      ? new vscode.ThemeIcon('error', new vscode.ThemeColor('errorForeground'))
+      : status === 'active'
+        ? new vscode.ThemeIcon('pass', new vscode.ThemeColor('charts.green'))
+        : isActive
+          ? new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green'))
+          : new vscode.ThemeIcon(
+            m.source === 'cloud' ? 'cloud' : m.source === 'nim' ? 'server-process' : 'code')
     item.command = { command: setChatCommand, title: 'Use for Chat', arguments: [m.key] }
     return item
   }

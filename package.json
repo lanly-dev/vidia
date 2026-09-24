@@ -184,6 +184,12 @@
         },
         {
           "command": "vidia.ncp.testModelItem",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:.*:untested$/",
+          "group": "inline@1",
+          "icon": "$(beaker)"
+        },
+        {
+          "command": "vidia.ncp.testModelItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
           "group": "1_mod@2"
         },
