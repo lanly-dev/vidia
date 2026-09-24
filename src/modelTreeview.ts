@@ -53,8 +53,7 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
         const opts: { source: ModelSource, envIssues?: string[] } = { source }
         // NIM header shows a warning icon until Docker + NVIDIA GPU are present.
         if (source === 'nim') opts.envIssues = (await this.nimManager.checkEnv()).issues
-        nodes.push(new VidiaItem('group', SOURCE_LABELS[source],
-          vscode.TreeItemCollapsibleState.Expanded, opts))
+        nodes.push(new VidiaItem('group', SOURCE_LABELS[source], vscode.TreeItemCollapsibleState.Expanded, opts))
       }
       return nodes
     }

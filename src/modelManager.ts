@@ -2,10 +2,11 @@ import * as vscode from 'vscode'
 import type {
   CatalogCache, CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelProbe, ModelSource
 } from './types'
-import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
+import type { NimManager } from './nimManager'
+
 import { DEFAULT_BASE_URL, NvidiaApiError, NvidiaClient } from './nvidiaClient'
 import { refreshEvents } from './events'
-import type { NimManager } from './nimManager'
+import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
 
 const STORAGE_KEY = 'vidia.managedModels'
 const CATALOG_KEY = 'vidia.modelCatalog'
@@ -24,8 +25,8 @@ export class ModelManager implements vscode.Disposable {
   private client?: NvidiaClient
 
   constructor(
-		private readonly context: vscode.ExtensionContext,
-		private readonly getApiKey: (source: ModelSource) => string | undefined | Thenable<string | undefined>
+    private readonly context: vscode.ExtensionContext,
+    private readonly getApiKey: (source: ModelSource) => string | undefined | Thenable<string | undefined>
   ) {
     this.models = context.globalState.get<ManagedModel[]>(STORAGE_KEY, [])
   }
@@ -46,10 +47,8 @@ export class ModelManager implements vscode.Disposable {
   add(partial: Omit<ManagedModel, 'key' | 'addedAt'>): ManagedModel {
     const model: ManagedModel = { ...partial, key: `${partial.source}:${partial.modelId}`, addedAt: Date.now() }
     const existing = this.get(model.key)
-    if (existing)
-      Object.assign(existing, model)
-		 else
-      this.models.push(model)
+    if (existing) Object.assign(existing, model)
+    else this.models.push(model)
 
     this.persist()
     return model
@@ -113,7 +112,7 @@ export class ModelManager implements vscode.Disposable {
         ? { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }
         : { Accept: 'application/json' }
     })
-    if (!res.ok)  throw new Error(`Catalog request failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
+    if (!res.ok) throw new Error(`Catalog request failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
     const json = JSON.parse(await res.text()) as { data?: Array<{ id?: string }> }
     const models = (json.data ?? [])
       .filter(m => typeof m.id === 'string')
@@ -127,7 +126,7 @@ export class ModelManager implements vscode.Disposable {
         }
       })
       .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
-    if (models.length === 0)  throw new Error('Catalog request returned no models.')
+    if (models.length === 0) throw new Error('Catalog request returned no models.')
     return models
   }
 
@@ -153,7 +152,7 @@ export class ModelManager implements vscode.Disposable {
       try {
         return (await this.refreshCatalog(apiKey)).models
       } catch {
-        if (cached)  return cached.models
+        if (cached) return cached.models
         throw new Error('VIDIA: could not reach the model endpoint and no cached catalog exists.')
       }
     }
@@ -247,7 +246,7 @@ export class ModelManager implements vscode.Disposable {
     const retry = await vscode.window.showErrorMessage(
       'VIDIA: could not reach the model endpoint and no cached catalog exists.',
       'Refresh Catalog', 'Open build.nvidia.com')
-    if (retry === 'Refresh Catalog')  await this.refreshCatalogFlow()
+    if (retry === 'Refresh Catalog') await this.refreshCatalogFlow()
     else if (retry === 'Open build.nvidia.com')
       void vscode.env.openExternal(vscode.Uri.parse('https://build.nvidia.com/models'))
   }
@@ -335,8 +334,7 @@ export class ModelManager implements vscode.Disposable {
     const start = await vscode.window.showInformationMessage(
       `Added ${modelId}. Start its NIM container now? Docker will download ${image} on first run.`,
       'Start Now', 'Later')
-    if (start === 'Start Now' && nim)
-      await nim.startWithProgress(added)
+    if (start === 'Start Now' && nim) await nim.startWithProgress(added)
   }
 
   /** Resolves the managed model behind a tree command argument. */
@@ -352,8 +350,7 @@ export class ModelManager implements vscode.Disposable {
   async removeModel(arg?: ModelArgument, nim?: NimManager): Promise<void> {
     const m = this.resolveModel(arg)
     if (!m || !this.get(m.key)) {
-      vscode.window.showWarningMessage(
-        'VIDIA: could not resolve the model to remove. Refresh the view and try again.')
+      vscode.window.showWarningMessage('VIDIA: could not resolve the model to remove. Refresh the view and try again.')
       return
     }
     if (m.source === 'nim' && nim) await nim.stop(m, true)
@@ -419,5 +416,7 @@ export class ModelManager implements vscode.Disposable {
     }
   }
 
-  dispose(): void { this._onDidChange.dispose() }
+  dispose(): void {
+    this._onDidChange.dispose()
+  }
 }

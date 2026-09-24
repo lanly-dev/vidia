@@ -5,9 +5,9 @@ import { refreshEvents } from './events'
 
 export class NimManager {
   constructor(
-		private readonly getNgcKey: () => string | undefined | Thenable<string | undefined>,
-		private readonly resolveModel: (arg?: ModelArgument) => ManagedModel | undefined,
-		private readonly log: (msg: string) => void
+    private readonly getNgcKey: () => string | undefined | Thenable<string | undefined>,
+    private readonly resolveModel: (arg?: ModelArgument) => ManagedModel | undefined,
+    private readonly log: (msg: string) => void
   ) { }
 
   /** User flow: start the container for the selected NIM model with progress UI. */
@@ -23,8 +23,8 @@ export class NimManager {
       async (_p, token) => {
         try {
           await this.run(m, token)
-          vscode.window.showInformationMessage(
-            `NIM server for ${m.modelId} is healthy at http://localhost:${m.nimPort ?? 8000}/v1.`)
+          const url = `http://localhost:${m.nimPort}/v1`
+          vscode.window.showInformationMessage(`NIM server for ${m.modelId} is healthy at ${url}`)
         } catch (e) {
           vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e))
         }
@@ -61,8 +61,7 @@ export class NimManager {
    */
   async checkEnv(force = false): Promise<{ ok: boolean, issues: string[] }> {
     const TTL_MS = 60_000
-    if (!force && this.envCache && Date.now() - this.envCache.checkedAt < TTL_MS)
-      return this.envCache
+    if (!force && this.envCache && Date.now() - this.envCache.checkedAt < TTL_MS) return this.envCache
     const issues: string[] = []
     if (!await this.detectRuntime()) {
       issues.push('Docker (or Podman) not found — install Docker Desktop: ' +
@@ -77,15 +76,14 @@ export class NimManager {
   /** True when `nvidia-smi -L` runs and lists at least one GPU. */
   private hasNvidiaGpu(): Promise<boolean> {
     return new Promise(resolve => {
-      cp.exec('nvidia-smi -L', { windowsHide: true },
-        (err, stdout) => resolve(!err && /GPU/i.test(stdout)))
+      cp.exec('nvidia-smi -L', { windowsHide: true }, (err, stdout) => resolve(!err && /GPU/i.test(stdout)))
     })
   }
 
   private async detectRuntime(): Promise<string | undefined> {
     const candidates = this.runtime === 'auto' ? ['docker', 'podman'] : [this.runtime]
     for (const cmd of candidates)
-      if (await this.exists(cmd))  return cmd
+      if (await this.exists(cmd)) return cmd
 
     return undefined
   }
@@ -105,10 +103,7 @@ export class NimManager {
     }
 
     const key = await this.getNgcKey()
-    if (!key) {
-      throw new Error(
-        'No NGC API key configured. Get one at https://org.ngc.nvidia.com/ then run "VIDIA: Set NGC API Key".')
-    }
+    if (!key) throw new Error('No NGC API key configured. Get one at https://org.ngc.nvidia.com/".')
 
     return rt
   }
@@ -153,10 +148,10 @@ export class NimManager {
   async waitForHealthy(port: number, token?: vscode.CancellationToken, timeoutMs = 20 * 60_000): Promise<void> {
     const started = Date.now()
     while (Date.now() - started < timeoutMs) {
-      if (token?.isCancellationRequested)  throw new Error('Cancelled.')
+      if (token?.isCancellationRequested) throw new Error('Cancelled.')
       try {
         const res = await fetch(`http://localhost:${port}/v1/models`)
-        if (res.ok)  return
+        if (res.ok) return
       } catch { /* not up yet */ }
       await new Promise(r => setTimeout(r, 3_000))
     }
@@ -169,7 +164,7 @@ export class NimManager {
     const name = this.containerName(model)
     await new Promise<void>(resolve => {
       cp.exec(`docker rm -f "${name}"`, { windowsHide: true }, err => {
-        if (err && !quiet)  this.log(`[NIM] stop ${name}: ${err.message}`)
+        if (err && !quiet) this.log(`[NIM] stop ${name}: ${err.message}`)
         resolve()
       })
     })
@@ -186,7 +181,7 @@ export class NimManager {
   private exec(cmd: string, timeout: number): Promise<string> {
     return new Promise((resolve, reject) => {
       cp.exec(cmd, { windowsHide: true, timeout }, (err, stdout, stderr) => {
-        if (err)  reject(new Error(`${err.message}${stderr ? `\n${stderr}` : ''}`));  else  resolve(stdout)
+        if (err) reject(new Error(`${err.message}${stderr ? `\n${stderr}` : ''}`)); else resolve(stdout)
       })
     })
   }

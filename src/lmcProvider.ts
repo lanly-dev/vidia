@@ -6,11 +6,8 @@ import type { NvidiaClient } from './nvidiaClient'
 export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
   readonly onDidChangeLanguageModelChatInformation: vscode.Event<void>
 
-  constructor(
-		private readonly manager: ModelManager,
-		private readonly client: NvidiaClient,
-		changeSignal: vscode.Event<void>
-  ) {
+  constructor(private readonly manager: ModelManager, private readonly client: NvidiaClient,
+    changeSignal: vscode.Event<void>) {
     this.onDidChangeLanguageModelChatInformation = changeSignal
   }
 
@@ -27,8 +24,11 @@ export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
   }
 
   private toInfo(m: ManagedModel): vscode.LanguageModelChatInformation {
-    const detail = m.source === 'cloud' ? 'NVIDIA free endpoint'
-      : m.source === 'nim' ? 'Self-hosted NIM container' : 'Local runtime'
+    const detail = m.source === 'cloud'
+      ? 'NVIDIA free endpoint'
+      : m.source === 'nim'
+        ? 'Self-hosted NIM container'
+        : 'Local runtime'
     return {
       id: m.key,
       name: `${m.publisher}/${m.name}`,

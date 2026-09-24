@@ -29,33 +29,20 @@ export function isNvidiaAccountFunctionNotFoundError(body: string): boolean {
 
 /** Actionable message shown when a model's deployment is not mapped to the caller's
  * NVIDIA account (i.e. "Public API Endpoints" is not enabled for the organization). */
-export const NVIDIA_ACCOUNT_ENTITLEMENT_HINT =
-  'This model is not available on your NVIDIA account. Your API key is valid, but the ' +
-  '"Public API Endpoints" entitlement may not be enabled for your account/organization. ' +
-  'Visit https://build.nvidia.com/explore/discover, sign in, and request access to ' +
-  'Public API Endpoints. Alternatively, self-host the model via a NIM container or local runtime.'
+export const NVIDIA_ACCOUNT_ENTITLEMENT_HINT = 'This model is not available on your NVIDIA account.'
 
 export function friendlyHttpError(status: number, body: string): string {
-  if (status === 401 || status === 403)
-    return 'Authorization failed. Check your NVIDIA API key (NVIDIA: Set NVIDIA API Key).'
-
-  if (status === 429)
-  {return 'Rate limit reached on the free NVIDIA endpoint. Wait a moment and retry,' +
-      ' or self-host the model via NIM/local runtime.'}
-
-  if (status >= 500)
-    return `NVIDIA server error (${status}). The endpoint may be busy; try again later.`
-
-  if (status === 404 && isNvidiaAccountFunctionNotFoundError(body))
-    return NVIDIA_ACCOUNT_ENTITLEMENT_HINT
-
+  if (status === 401 || status === 403) return 'Authorization failed. Check your API key.'
+  if (status === 429) return 'Rate limit reached on the free NVIDIA endpoint.'
+  if (status >= 500) return `NVIDIA server error (${status}).`
+  if (status === 404 && isNvidiaAccountFunctionNotFoundError(body)) return NVIDIA_ACCOUNT_ENTITLEMENT_HINT
   return `NVIDIA API request failed (${status}): ${body.slice(0, 300)}`
 }
 
 export class NvidiaClient {
   constructor(
-		private readonly getApiKey: () => string | undefined | Thenable<string | undefined>,
-		private readonly log: (msg: string) => void
+    private readonly getApiKey: () => string | undefined | Thenable<string | undefined>,
+    private readonly log: (msg: string) => void
   ) { }
 
   get baseUrl(): string {
@@ -65,7 +52,7 @@ export class NvidiaClient {
   private async headers(apiKey?: string): Promise<Record<string, string>> {
     const key = apiKey ?? (await this.getApiKey())
     const h: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' }
-    if (key)  h['Authorization'] = `Bearer ${key}`
+    if (key) h['Authorization'] = `Bearer ${key}`
     return h
   }
 
@@ -73,7 +60,7 @@ export class NvidiaClient {
   async listModels(apiKey?: string): Promise<CatalogModel[]> {
     const res = await fetch(`${this.baseUrl}/models`, { headers: await this.headers(apiKey) })
     const body = await res.text()
-    if (!res.ok)  throw new NvidiaApiError(res.status, friendlyHttpError(res.status, body))
+    if (!res.ok) throw new NvidiaApiError(res.status, friendlyHttpError(res.status, body))
     const json = JSON.parse(body) as { data?: Array<{ id?: string }> }
     const models: CatalogModel[] = (json.data ?? [])
       .filter(m => typeof m.id === 'string')
@@ -89,9 +76,9 @@ export class NvidiaClient {
   }
 
   /**
-	 * Sends a chat request and streams deltas to the callback.
-	 * Works against any OpenAI-compatible endpoint (cloud, NIM container, or local runtime).
-	 */
+   * Sends a chat request and streams deltas to the callback.
+   * Works against any OpenAI-compatible endpoint (cloud, NIM container, or local runtime).
+   */
   async chatStream(
     target: ChatTarget,
     messages: ChatMessage[],
@@ -123,15 +110,15 @@ export class NvidiaClient {
     let full = ''
     while (true) {
       const { done, value } = await reader.read()
-      if (done)  break
+      if (done) break
       buffer += decoder.decode(value, { stream: true })
       let nl: number
       while ((nl = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, nl).trim()
         buffer = buffer.slice(nl + 1)
-        if (!line.startsWith('data:'))  continue
+        if (!line.startsWith('data:')) continue
         const payload = line.slice(5).trim()
-        if (payload === '[DONE]')  return full
+        if (payload === '[DONE]') return full
         try {
           const json = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> }
           const delta = json.choices?.[0]?.delta?.content
@@ -170,7 +157,7 @@ export class NvidiaClient {
       })
     })
     const body = await res.text()
-    if (!res.ok)  throw new NvidiaApiError(res.status, friendlyHttpError(res.status, body))
+    if (!res.ok) throw new NvidiaApiError(res.status, friendlyHttpError(res.status, body))
     try {
       const json = JSON.parse(body) as { choices?: Array<{ message?: { content?: string } }> }
       const reply = json.choices?.[0]?.message?.content?.trim() ?? ''
