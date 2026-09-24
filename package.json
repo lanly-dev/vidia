@@ -33,6 +33,13 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "vidia.modelsExplorer",
+        "contents": "No NVIDIA API key configured.\nAn API key is required to browse and query NVIDIA NIM cloud models.\n[Set NVIDIA API Key](command:vidia.setNvidiaApiKey)\n[Get API Key](https://build.nvidia.com)",
+        "when": "!vidia:setupKeyExists"
+      }
+    ],
     "languageModelChatProviders": [
       {
         "vendor": "vidia",

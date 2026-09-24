@@ -7,6 +7,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [Unreleased]
 
 - Initial release
+- Added `viewsWelcome` welcome content to the Models Explorer tree view prompting users to set their NVIDIA API key when not configured.
 - Added `VIDIA: Clear API Key` command (also a `$(clear-all)` button in the
   Models Explorer title bar) to remove stored NVIDIA/NGC API keys from
   SecretStorage with confirmation.
