@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 import { refreshEvents } from './events'
-import { friendlyHttpError } from './nvidiaClient'
+import { DEFAULT_BASE_URL, NvidiaApiError } from './nvidiaClient'
+import { checkKey } from './keyVerifier'
 
 const NVIDIA_KEY = 'vidia.nvapiKey'
 const KEY_EXISTS_CONTEXT_KEY = 'vidia:setupKeyExists'
@@ -73,8 +74,9 @@ export class SecretManager {
 
     // If a key string was pasted/typed directly into the quickpick
     if (typeof selectedOrKey === 'string') {
-      await this.saveKey(name, selectedOrKey, prompt, link)
-      return
+      if (await this.saveKey(name, selectedOrKey, prompt, link)) return
+      // Rejected — offer the input again instead of stranding the user.
+      return this.store(name, prompt, link)
     }
 
     if (selectedOrKey.test) {
@@ -85,7 +87,9 @@ export class SecretManager {
         return
       }
       try {
-        const models = await this.testKey(key)
+        const models = await vscode.window.withProgress(
+          { location: vscode.ProgressLocation.Notification, title: 'Testing NVIDIA API key…' },
+          () => this.testKey(key))
         vscode.window.showInformationMessage(
           `Key is valid — ${models.length} model(s) available on the cloud endpoint.`,
           { modal: false })
@@ -111,38 +115,57 @@ export class SecretManager {
     }
   }
 
-  private async saveKey(name: string, key: string, prompt: string, link: string): Promise<void> {
+  /** Persists a key only after the API has accepted it. Returns true when stored. */
+  private async saveKey(name: string, key: string, prompt: string, link: string): Promise<boolean> {
+    const trimmed = key.trim()
+
+    // Never trust the catalog alone: /models is public and answers 200 for bogus keys.
+    // Verify with an authenticated request before writing anything to SecretStorage.
+    let failure: Error | undefined
+    try {
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Verifying NVIDIA API key…' },
+        () => this.testKey(trimmed))
+    } catch (err) {
+      failure = err instanceof Error ? err : new Error(String(err))
+    }
+
+    if (failure) {
+      const status = failure instanceof NvidiaApiError ? failure.status : undefined
+      if (status === 401 || status === 403) {
+        await vscode.window.showErrorMessage(
+          `That NVIDIA API key was rejected: ${failure.message}`,
+          {
+            modal: true,
+            detail: 'The key was not saved. Copy a fresh key from build.nvidia.com and paste it again.'
+          })
+        return false
+      }
+      // Offline, rate limited or endpoint trouble — the key itself may be fine.
+      const choice = await vscode.window.showWarningMessage(
+        `Could not verify the key: ${failure.message}`,
+        { detail: 'Save it without checking?' }, 'Save Anyway', 'Discard')
+      if (choice !== 'Save Anyway') return false
+    }
+
     await this.context.secrets.delete(name)
-    await this.context.secrets.store(name, key.trim())
+    await this.context.secrets.store(name, trimmed)
     await this.syncKeyExistsContext()
     refreshEvents.fire()
     vscode.window.showInformationMessage(`${prompt} stored securely (SecretStorage). Get/refresh keys at ${link}`)
+    return true
   }
 
-  /** Validates a cloud API key by sending a tiny chat completion request.
-   * A 401/403 means the key is bad; any 2xx means it's valid and usable.
-   * Uses the same base URL the extension uses for chat (baseUrl setting or default).
+  /** Validates a cloud API key and returns the model catalog.
+   *
+   * The verdict itself lives in ./keyVerifier — a `vscode`-free module — so
+   * `npm run key:check` exercises the exact same code path. This method only wires in the
+   * configured base URL (the one the extension uses for chat).
    */
   private async testKey(key: string): Promise<{ id: string }[]> {
-    const baseUrl = vscode.workspace.getConfiguration('vidia').get<string>('baseUrl',
-      'https://integrate.api.nvidia.com/v1')
-    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/models`, {
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(key ? { Authorization: `Bearer ${key}` } : {})
-      }
-    })
-    const body = await res.text()
-    if (!res.ok) {
-      // A missing model catalog (custom base URL, or a key that does not expose
-      // /models) is verified with a tiny chat completion instead; that probe error
-      // is more specific (bad key vs. model not entitled to this account).
-      if (res.status === 404) return this.testKeyViaChat(baseUrl, key)
-      throw new Error(friendlyHttpError(res.status, body))
-    }
-    const json = JSON.parse(body) as { data?: Array<{ id?: string }> }
-    return (json.data ?? []).filter(m => typeof (m as any).id === 'string') as { id: string }[]
+    const baseUrl = vscode.workspace.getConfiguration('vidia').get<string>('baseUrl', DEFAULT_BASE_URL)
+    const { models } = await checkKey(baseUrl, key)
+    return models
   }
 
   async changeNvidiaKey(): Promise<void> {
@@ -175,29 +198,5 @@ export class SecretManager {
     await this.syncKeyExistsContext()
     refreshEvents.fire()
     vscode.window.showInformationMessage('Cleared NVIDIA API key from SecretStorage.', { modal: false })
-  }
-
-  /** Fallback: validate a key via a tiny chat completion when /models is unavailable. */
-  private async testKeyViaChat(baseUrl: string, key: string): Promise<{ id: string }[]> {
-    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(key ? { Authorization: `Bearer ${key}` } : {})
-      },
-      body: JSON.stringify({
-        model: 'nvidia/llama-3.1-nemotron-70b-instruct',
-        messages: [{ role: 'user', content: 'Reply with exactly: OK' }],
-        max_tokens: 4,
-        temperature: 0
-      })
-    })
-    if (!res.ok) {
-      const body = await res.text()
-      // 401/403 => bad key; 404 with 'Not found for account' => model not entitled.
-      throw new Error(friendlyHttpError(res.status, body))
-    }
-    return [{ id: 'cloud:nvidia/llama-3.1-nemotron-70b-instruct' }]
   }
 }
