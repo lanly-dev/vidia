@@ -5,7 +5,7 @@ import { refreshEvents } from './events'
 
 export class NimManager {
   constructor(
-    private readonly getNgcKey: () => string | undefined | Thenable<string | undefined>,
+    private readonly getNvidiaKey: () => string | undefined | Thenable<string | undefined>,
     private readonly resolveModel: (arg?: ModelArgument) => ManagedModel | undefined,
     private readonly log: (msg: string) => void
   ) { }
@@ -102,8 +102,8 @@ export class NimManager {
         ' https://www.docker.com/products/docker-desktop/')
     }
 
-    const key = await this.getNgcKey()
-    if (!key) throw new Error('No NGC API key configured. Get one at https://org.ngc.nvidia.com/".')
+    const key = await this.getNvidiaKey()
+    if (!key) throw new Error('No NVIDIA API key configured. Get one at https://build.nvidia.com/.')
 
     return rt
   }
@@ -125,7 +125,7 @@ export class NimManager {
     await this.stop(model, true)
     const port = model.nimPort ?? vscode.workspace.getConfiguration('vidia.nim').get<number>('defaultPort', 8000)
     const name = this.containerName(model)
-    const key = (await this.getNgcKey()) ?? ''
+    const key = (await this.getNvidiaKey()) ?? ''
     const remoteHost = vscode.workspace.getConfiguration('vidia.nim').get<string>('remoteHost', '')
     if (remoteHost) {
       this.log(`Using remote NIM host ${remoteHost} for ${model.modelId}; skipping local container launch.`)

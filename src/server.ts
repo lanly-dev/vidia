@@ -26,13 +26,13 @@ export default class Server {
       (msg) => this.logs.appendLine(msg)
     )
     this.nim = new NimManager(
-      () => this.secrets.getNgcKey(),
+      () => this.secrets.getNvidiaKey(),
       (arg) => this.manager.resolveModel(arg),
       (msg) => this.logs.appendLine(msg)
     )
     this.manager = new ModelManager(
       context,
-      (source) => source === 'nim' ? this.secrets.getNgcKey() : this.secrets.getNvidiaKey()
+      () => this.secrets.getNvidiaKey()
     )
     this.manager.setClient(this.client)
 
@@ -103,10 +103,6 @@ export default class Server {
   /** Settings operations */
   async setNvidiaApiKey(_p: ModelsTreeProvider): Promise<void> {
     await this.secrets.setNvidiaKey()
-  }
-
-  async setNgcApiKey(_p: ModelsTreeProvider): Promise<void> {
-    await this.secrets.setNgcKey()
   }
 
   async changeNvidiaApiKey(_p: ModelsTreeProvider): Promise<void> {

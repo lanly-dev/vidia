@@ -44,11 +44,8 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
 
   async getChildren(element?: VidiaItem): Promise<VidiaItem[]> {
     if (!element) {
+      if (!await this.secretManager.getNvidiaKey()) return []
       const nodes: VidiaItem[] = []
-      if (!await this.secretManager.getNvidiaKey()) {
-        nodes.push(new VidiaItem('setup', 'Set your NVIDIA API key to get started',
-          vscode.TreeItemCollapsibleState.None))
-      }
       for (const source of ['cloud', 'nim', 'local'] as ModelSource[]) {
         const opts: { source: ModelSource, envIssues?: string[] } = { source }
         // NIM header shows a warning icon until Docker + NVIDIA GPU are present.

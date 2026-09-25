@@ -34,7 +34,6 @@ export async function activate(context: ExtensionContext) {
   const d7 = rc('vidia.ncp.showNimLogsItem', (arg?: ModelArgument) => server.showNimLogs(p, arg))
 
   const d8 = rc('vidia.setNvidiaApiKey', () => server.setNvidiaApiKey(p))
-  const d9 = rc('vidia.setNgcApiKey', () => server.setNgcApiKey(p))
   const d10 = rc('vidia.openBuildNvidia', () => server.openBuildNvidia(p))
   const d11 = rc('vidia.openSettings', () => server.openSettings())
   const d12 = rc('vidia.refreshServerStatus', () => p.refreshStatus())
@@ -48,7 +47,7 @@ export async function activate(context: ExtensionContext) {
   server.manager.ensureCatalogFresh()
 
   context.subscriptions.push(
-    d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, dDecorations, ...harness)
+    d0, d1, d2, d3, d4, d5, d6, d7, d8, d10, d11, d12, d13, d14, d15, d16, dDecorations, ...harness)
 }
 
 export function deactivate() {

@@ -3,7 +3,6 @@ import { refreshEvents } from './events'
 import { friendlyHttpError } from './nvidiaClient'
 
 const NVIDIA_KEY = 'vidia.nvapiKey'
-const NGC_KEY = 'vidia.ngcApiKey'
 const KEY_EXISTS_CONTEXT_KEY = 'vidia:setupKeyExists'
 
 /**
@@ -14,8 +13,6 @@ export class SecretManager {
   constructor(private readonly context: vscode.ExtensionContext) { }
 
   getNvidiaKey(): Thenable<string | undefined> { return this.context.secrets.get(NVIDIA_KEY) }
-
-  getNgcKey(): Thenable<string | undefined> { return this.context.secrets.get(NGC_KEY) }
 
   async initKeyExistsContext(): Promise<void> {
     await this.syncKeyExistsContext()
@@ -29,31 +26,58 @@ export class SecretManager {
 
   async setNvidiaKey(): Promise<void> {
     await this.store(NVIDIA_KEY, 'Set NVIDIA API Key', 'https://build.nvidia.com/explore/discover')
-    this.syncKeyExistsContext()
-  }
-
-  async setNgcKey(): Promise<void> {
-    await this.store(NGC_KEY, 'Set NGC API Key', 'https://org.ngc.nvidia.com/setup/api-keys')
-    this.syncKeyExistsContext()
+    await this.syncKeyExistsContext()
+    refreshEvents.fire()
   }
 
   private async store(name: string, prompt: string, link: string): Promise<void> {
-    // "Login-like" flow: NVIDIA has no OAuth login for its APIs, so the browser
-    // sign-in happens on the portal — the credential is always the generated key.
-    // We also allow testing the already-stored key from the same entry point.
+    // NVIDIA has no OAuth login for its APIs, so the browser sign-in happens on the portal.
+    // Users can paste their key directly into the input bar, test an existing key, or sign in via browser.
     const key = await this.context.secrets.get(name)
-    const action = await vscode.window.showQuickPick(
-      [
-        { label: '$(globe) Sign in & generate key in browser', portal: true },
-        { label: '$(key) I already have a key — paste it', portal: false },
-        ...(key
-          ? [{ label: '$(check) Test current key', test: true }]
-          : [])
-      ],
-      { placeHolder: `${prompt} (sign in on the portal, copy the key, paste it back here)` })
-    if (!action) return
 
-    if (action.test) {
+    type ActionItem = vscode.QuickPickItem & { test?: boolean, portal?: boolean }
+
+    const baseItems: ActionItem[] = [
+      { label: '$(globe) Sign in & generate key in browser', portal: true },
+      ...(key ? [{ label: '$(check) Test current key', test: true }] : [])
+    ]
+
+    const selectedOrKey = await new Promise<string | ActionItem | undefined>((resolve) => {
+      const qp = vscode.window.createQuickPick<ActionItem>()
+      qp.title = prompt
+      qp.placeholder = 'Paste NVIDIA API key (nvapi-…) or select an option below'
+      qp.ignoreFocusOut = true
+      qp.items = baseItems
+
+      qp.onDidAccept(() => {
+        const val = qp.value.trim()
+        if (val) {
+          qp.hide()
+          resolve(val)
+          return
+        }
+        const selected = qp.selectedItems[0]
+        qp.hide()
+        resolve(selected)
+      })
+
+      qp.onDidHide(() => {
+        qp.dispose()
+        resolve(undefined)
+      })
+
+      qp.show()
+    })
+
+    if (!selectedOrKey) return
+
+    // If a key string was pasted/typed directly into the quickpick
+    if (typeof selectedOrKey === 'string') {
+      await this.saveKey(name, selectedOrKey, prompt, link)
+      return
+    }
+
+    if (selectedOrKey.test) {
       if (!key) {
         vscode.window.showWarningMessage(
           'No key is stored yet — paste one or sign in to generate one instead.',
@@ -73,21 +97,26 @@ export class SecretManager {
       return
     }
 
-    if (action.portal) {
+    if (selectedOrKey.portal) {
       await vscode.env.openExternal(vscode.Uri.parse(link))
       const ok = await vscode.window.showInformationMessage(
         `Signing in at ${new URL(link).hostname}. After signing in, copy the generated API key.`,
         'I have the key')
       if (!ok) return
+
+      const newKey = await vscode.window.showInputBox({
+        prompt, password: true, ignoreFocusOut: true, placeHolder: 'nvapi-… key'
+      })
+      if (newKey) await this.saveKey(name, newKey, prompt, link)
     }
-    const newKey = await vscode.window.showInputBox({
-      prompt, password: true, ignoreFocusOut: true, placeHolder: 'nvapi-… key'
-    })
-    if (newKey) {
-      await this.context.secrets.delete(name)
-      await this.context.secrets.store(name, newKey.trim())
-      vscode.window.showInformationMessage(`${prompt} stored securely (SecretStorage). Get/refresh keys at ${link}`)
-    }
+  }
+
+  private async saveKey(name: string, key: string, prompt: string, link: string): Promise<void> {
+    await this.context.secrets.delete(name)
+    await this.context.secrets.store(name, key.trim())
+    await this.syncKeyExistsContext()
+    refreshEvents.fire()
+    vscode.window.showInformationMessage(`${prompt} stored securely (SecretStorage). Get/refresh keys at ${link}`)
   }
 
   /** Validates a cloud API key by sending a tiny chat completion request.
@@ -118,41 +147,23 @@ export class SecretManager {
 
   async changeNvidiaKey(): Promise<void> {
     await this.store(NVIDIA_KEY, 'Change NVIDIA API Key', 'https://build.nvidia.com/explore/discover')
+    await this.syncKeyExistsContext()
+    refreshEvents.fire()
   }
 
   /**
-   * Removes stored API key(s) from SecretStorage after confirmation.
-   * When both the NVIDIA and NGC keys exist, a quick pick asks which one to
-   * drop (with a "Clear all stored keys" option). Afterwards the
-   * `vidia:setupKeyExists` context key is re-synced (hiding the Change/Clear
-   * buttons) and the tree is refreshed so the setup row reappears.
+   * Removes stored NVIDIA API key from SecretStorage after confirmation.
+   * Afterwards the `vidia:setupKeyExists` context key is re-synced and the tree is refreshed.
    */
   async clearApiKey(): Promise<void> {
-    const entries: { label: string, description: string, id: 'nvidia' | 'ngc' }[] = []
-    if (await this.context.secrets.get(NVIDIA_KEY))
-      entries.push({ label: '$(key) NVIDIA API key', description: 'nvapi-… · build.nvidia.com', id: 'nvidia' })
-    if (await this.context.secrets.get(NGC_KEY))
-      entries.push({ label: '$(key) NGC API key', description: 'ngc-… · org.ngc.nvidia.com', id: 'ngc' })
-    if (entries.length === 0) {
+    const key = await this.context.secrets.get(NVIDIA_KEY)
+    if (!key) {
       vscode.window.showInformationMessage('No API key is stored — nothing to clear.', { modal: false })
       return
     }
 
-    // Only one key stored → clear it directly; otherwise ask which one.
-    let ids: Array<'nvidia' | 'ngc'> = [entries[0].id]
-    if (entries.length > 1) {
-      const pick = await vscode.window.showQuickPick(
-        [...entries, { label: '$(trash) Clear all stored keys', description: 'NVIDIA + NGC', id: 'all' as const }],
-        { placeHolder: 'Select the API key to clear (removed from VS Code SecretStorage)' })
-      if (!pick) return
-      ids = pick.id === 'all' ? ['nvidia', 'ngc'] : [pick.id]
-    }
-
-    const what = ids.length > 1
-      ? 'both stored API keys'
-      : ids[0] === 'nvidia' ? 'the NVIDIA API key' : 'the NGC API key'
     const confirm = await vscode.window.showWarningMessage(
-      `Clear ${what}?`,
+      'Clear the stored NVIDIA API key?',
       {
         modal: true,
         detail: 'The key is deleted from VS Code SecretStorage. VIDIA will ask for it again the next time it needs one.'
@@ -160,12 +171,10 @@ export class SecretManager {
       'Clear Key')
     if (!confirm) return
 
-    for (const id of ids)
-      await this.context.secrets.delete(id === 'nvidia' ? NVIDIA_KEY : NGC_KEY)
+    await this.context.secrets.delete(NVIDIA_KEY)
     await this.syncKeyExistsContext()
     refreshEvents.fire()
-    vscode.window.showInformationMessage(
-      `Cleared ${what} from SecretStorage.`, { modal: false })
+    vscode.window.showInformationMessage('Cleared NVIDIA API key from SecretStorage.', { modal: false })
   }
 
   /** Fallback: validate a key via a tiny chat completion when /models is unavailable. */

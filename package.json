@@ -127,11 +127,6 @@
         "category": "VIDIA"
       },
       {
-        "command": "vidia.setNgcApiKey",
-        "title": "Set NGC API Key",
-        "category": "VIDIA"
-      },
-      {
         "command": "vidia.openBuildNvidia",
         "title": "Open build.nvidia.com",
         "category": "VIDIA"
