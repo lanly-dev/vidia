@@ -1,13 +1,11 @@
 import * as vscode from 'vscode'
 
 import type { ManagedModel, ModelSource } from './types'
-import { VidiaItem } from './vidiaTreeItem'
+import { SOURCE_LABELS, VidiaItem } from './vidiaTreeItem'
 import type { ModelManager } from './modelManager'
-import { SOURCE_LABELS } from './modelManager'
 import type { NimManager } from './nimManager'
 import { refreshEvents } from './events'
 import type { SecretManager } from './secretManager'
-
 
 export default class ModelsTreeProvider implements vscode.TreeDataProvider<VidiaItem> {
   private static instance?: ModelsTreeProvider

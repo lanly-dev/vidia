@@ -45,7 +45,6 @@ export function registerChatParticipant(
         prompt = `Conversation so far:\n${history}\n\n${prompt}`
       }
 
-
       const messages = [vscode.LanguageModelChatMessage.User(prompt)]
       const chatResponse = await model.sendRequest(messages, {}, token)
       for await (const fragment of chatResponse.stream) {

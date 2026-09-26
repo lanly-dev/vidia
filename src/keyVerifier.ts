@@ -19,10 +19,10 @@ import {
 /** Probe model used when the catalog is unavailable (custom base URL).
  * It is checked first because auth runs ahead of model resolution here: a bogus key gets a
  * definitive 401/403, instead of a model-level 404/410 that would reveal nothing. */
-export const FALLBACK_PROBE_MODEL = 'nvidia/llama-3.1-nemotron-70b-instruct'
+const FALLBACK_PROBE_MODEL = 'nvidia/llama-3.1-nemotron-70b-instruct'
 
 /** Upper bound on authenticated POSTs spent proving or disproving a key. */
-export const MAX_PROBE_ATTEMPTS = 8
+const MAX_PROBE_ATTEMPTS = 8
 
 /** What a single probe revealed about the key. */
 export type ProbeOutcome = 'valid' | 'invalid' | 'inconclusive'
@@ -46,7 +46,7 @@ type OnProbe = (report: ProbeReport) => void
 const normalize = (baseUrl: string): string => baseUrl.replace(/\/+$/, '')
 
 /** Model catalog for the current base URL. A custom endpoint without one yields []. */
-export async function fetchCatalog(baseUrl: string, key: string): Promise<{ id: string }[]> {
+async function fetchCatalog(baseUrl: string, key: string): Promise<{ id: string }[]> {
   const res = await fetch(`${normalize(baseUrl)}/models`, {
     headers: {
       'Content-Type': 'application/json',
@@ -67,7 +67,7 @@ export async function fetchCatalog(baseUrl: string, key: string): Promise<{ id: 
  * Returns the number of probes spent; throws `NvidiaApiError` when the key is rejected or
  * when no candidate produced a definitive answer.
  */
-export async function verifyKey(
+async function verifyKey(
   baseUrl: string,
   key: string,
   models: { id: string }[],

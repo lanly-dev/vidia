@@ -6,10 +6,7 @@ import type { VidiaItem } from './vidiaTreeItem'
 
 export type ModelSource = 'cloud' | 'nim'
 
-/**
- * Shared services created once at activation (audio-lab style: plain module
- * functions below receive the tree provider and use these shared services).
- */
+/** Services assembled once at activation and handed out through `Server`. */
 export interface Services {
 	secrets: SecretManager
 	client: NvidiaClient

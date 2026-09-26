@@ -14,9 +14,6 @@ const PROBE_KEY = 'vidia.modelProbes'
 /** Catalog is re-fetched when the cached snapshot is older than this. */
 const CATALOG_TTL_MS = 5 * 24 * 60 * 60 * 1000
 
-/** Re-exported for existing import sites (modelTreeview, lmcProvider, …). */
-export { SOURCE_LABELS }
-
 export class ModelManager implements vscode.Disposable {
   private readonly _onDidChange = new vscode.EventEmitter<void>()
   readonly onDidChange = this._onDidChange.event

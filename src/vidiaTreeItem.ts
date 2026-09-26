@@ -1,12 +1,10 @@
 import * as vscode from 'vscode'
 
-import type { ManagedModel, ModelProbe, ModelStatus } from './types'
+import type { ManagedModel, ModelProbe, ModelStatus, ModelSource } from './types'
 import { ModelDecorationProvider } from './modelDecorations'
 
-export type VidiaSource = 'cloud' | 'nim'
-
 /** Human-readable group labels, kept here (leaf module) to avoid import cycles. */
-export const SOURCE_LABELS: Record<VidiaSource, string> = {
+export const SOURCE_LABELS: Record<ModelSource, string> = {
   cloud: 'Cloud · Free Endpoint',
   nim: 'NIM · Self-Hosted'
 }
@@ -23,11 +21,11 @@ export const SOURCE_LABELS: Record<VidiaSource, string> = {
  * and the provider builds a real `vscode.TreeItem` from it in `getTreeItem()`.
  */
 export class VidiaItem {
-  readonly kind: 'setup' | 'group' | 'model' | 'message'
+  readonly kind: 'group' | 'model' | 'message'
   readonly label: string
   readonly collapsible: vscode.TreeItemCollapsibleState
   readonly model?: ManagedModel
-  readonly source?: VidiaSource
+  readonly source?: ModelSource
   /** Transient UI state (NIM container running); never persisted. */
   readonly running?: boolean
   /** Latest probe result for the model, if the user ever tested it. */
@@ -39,7 +37,7 @@ export class VidiaItem {
     kind: VidiaItem['kind'],
     label: string,
     collapsible: vscode.TreeItemCollapsibleState,
-    opts?: { model?: ManagedModel, source?: VidiaSource, running?: boolean, probe?: ModelProbe, envIssues?: string[] }
+    opts?: { model?: ManagedModel, source?: ModelSource, running?: boolean, probe?: ModelProbe, envIssues?: string[] }
   ) {
     this.kind = kind
     this.label = label
@@ -53,15 +51,6 @@ export class VidiaItem {
 
   toTreeItem(selectedModelKey: string | undefined, setChatCommand: string): vscode.TreeItem {
     const item = new vscode.TreeItem(this.label, this.collapsible)
-    if (this.kind === 'setup') {
-      item.id = 'setup'
-      item.description = 'Click here to enter your key'
-      item.tooltip = 'No NVIDIA API key found. Click this row to paste your key (nvapi-...).'
-      item.contextValue = 'setup'
-      item.iconPath = new vscode.ThemeIcon('key')
-      item.command = { command: 'vidia.setNvidiaApiKey', title: 'Set NVIDIA API Key' }
-      return item
-    }
     if (this.kind === 'group') {
       const source = this.source ?? 'cloud'
       item.id = `group:${source}`

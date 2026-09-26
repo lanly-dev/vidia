@@ -1,5 +1,4 @@
-import * as vscode from 'vscode'
-import type { CatalogModel, ChatMessage, ChatTarget, StreamCallbacks } from './types'
+import type { ChatMessage, ChatTarget, StreamCallbacks } from './types'
 import { NvidiaApiError, friendlyHttpError } from './nvidiaErrors'
 
 export const DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1'
@@ -14,34 +13,11 @@ export class NvidiaClient {
     private readonly log: (msg: string) => void
   ) { }
 
-  get baseUrl(): string {
-    return vscode.workspace.getConfiguration('vidia').get<string>('baseUrl', DEFAULT_BASE_URL)
-  }
-
   private async headers(apiKey?: string): Promise<Record<string, string>> {
     const key = apiKey ?? (await this.getApiKey())
     const h: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' }
     if (key) h['Authorization'] = `Bearer ${key}`
     return h
-  }
-
-  /** Lists models available on the (free) cloud endpoint. */
-  async listModels(apiKey?: string): Promise<CatalogModel[]> {
-    const res = await fetch(`${this.baseUrl}/models`, { headers: await this.headers(apiKey) })
-    const body = await res.text()
-    if (!res.ok) throw new NvidiaApiError(res.status, friendlyHttpError(res.status, body))
-    const json = JSON.parse(body) as { data?: Array<{ id?: string }> }
-    const models: CatalogModel[] = (json.data ?? [])
-      .filter(m => typeof m.id === 'string')
-      .map(m => {
-        const id = m.id as string
-        const slash = id.indexOf('/')
-        const publisher = slash > 0 ? id.slice(0, slash) : 'nvidia'
-        const name = slash > 0 ? id.slice(slash + 1) : id
-        return { id, publisher, name }
-      })
-      .sort((a, b) => a.publisher.localeCompare(b.publisher) || a.name.localeCompare(b.name))
-    return models
   }
 
   /**
@@ -101,11 +77,6 @@ export class NvidiaClient {
       }
     }
     return full
-  }
-
-  /** Quick non-streaming sanity test of a model. */
-  async testModel(target: ChatTarget): Promise<string> {
-    return this.chatStream(target, [{ role: 'user', content: 'Reply with exactly: OK' }], { onDelta: () => undefined })
   }
 
   /**
