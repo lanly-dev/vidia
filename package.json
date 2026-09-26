@@ -1,7 +1,7 @@
 {
   "name": "vidia",
   "displayName": "VIDIA — NVIDIA NIM Models",
-  "description": "Manage NVIDIA NIM models from build.nvidia.com in a tree view: use the free cloud endpoint, self-hosted NIM containers, or a local runtime — all integrated into the VS Code AI harness.",
+  "description": "Manage NVIDIA NIM models from build.nvidia.com in a tree view: use the free cloud endpoint or self-hosted NIM containers — all integrated into the VS Code AI harness.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.138.0"
@@ -301,11 +301,6 @@
           "type": "string",
           "default": "",
           "description": "Optional remote NIM host (host:port). When set, NIM models run there instead of local containers."
-        },
-        "vidia.localRuntime.port": {
-          "type": "number",
-          "default": 8000,
-          "description": "Default port of the local OpenAI-compatible runtime (lemonade/ollama/NIM)."
         }
       }
     }

@@ -46,7 +46,7 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
     if (!element) {
       if (!await this.secretManager.getNvidiaKey()) return []
       const nodes: VidiaItem[] = []
-      for (const source of ['cloud', 'nim', 'local'] as ModelSource[]) {
+      for (const source of ['cloud', 'nim'] as ModelSource[]) {
         const opts: { source: ModelSource, envIssues?: string[] } = { source }
         // NIM header shows a warning icon until Docker + NVIDIA GPU are present.
         if (source === 'nim') opts.envIssues = (await this.nimManager.checkEnv()).issues
@@ -64,8 +64,7 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
     if (models.length === 0) {
       const hint = element.source === 'cloud'
         ? 'No models. Use the + button to add one.'
-        : element.source === 'nim' ? 'No NIM models. Add one and run its container.'
-          : 'No local models. Add one and point to your local runtime.'
+        : 'No NIM models. Add one and run its container.'
       return [new VidiaItem('message', hint, vscode.TreeItemCollapsibleState.None)]
     }
     const items: VidiaItem[] = []

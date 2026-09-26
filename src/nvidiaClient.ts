@@ -46,7 +46,7 @@ export class NvidiaClient {
 
   /**
    * Sends a chat request and streams deltas to the callback.
-   * Works against any OpenAI-compatible endpoint (cloud, NIM container, or local runtime).
+   * Works against any OpenAI-compatible endpoint (cloud or NIM container).
    */
   async chatStream(
     target: ChatTarget,

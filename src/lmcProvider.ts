@@ -26,9 +26,7 @@ export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
   private toInfo(m: ManagedModel): vscode.LanguageModelChatInformation {
     const detail = m.source === 'cloud'
       ? 'NVIDIA free endpoint'
-      : m.source === 'nim'
-        ? 'Self-hosted NIM container'
-        : 'Local runtime'
+      : 'Self-hosted NIM container'
     return {
       id: m.key,
       name: `${m.publisher}/${m.name}`,

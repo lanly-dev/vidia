@@ -28,7 +28,12 @@ export class ModelManager implements vscode.Disposable {
     private readonly context: vscode.ExtensionContext,
     private readonly getApiKey: (source: ModelSource) => string | undefined | Thenable<string | undefined>
   ) {
-    this.models = context.globalState.get<ManagedModel[]>(STORAGE_KEY, [])
+    const stored = context.globalState.get<ManagedModel[]>(STORAGE_KEY, [])
+    // Persisted state can predate the removal of the `local` runtime source;
+    // drop stranded entries so they never surface in the chat picker.
+    this.models = stored.filter(m => (m.source as string) !== 'local')
+    if (this.models.length !== stored.length)
+      void context.globalState.update(STORAGE_KEY, this.models)
   }
 
   /** Injects the NVIDIA client (avoids a constructor cycle with the tree/provider wiring). */
@@ -76,8 +81,8 @@ export class ModelManager implements vscode.Disposable {
       const base = remoteHost ? `http://${remoteHost.replace(/\/+$/, '')}/v1` : `http://localhost:${port}/v1`
       return { baseUrl: base, apiKey: await this.getApiKey('nim'), model: model.modelId }
     }
-    const port = model.localPort ?? cfg.get<number>('localRuntime.port', 8000)
-    return { baseUrl: `http://localhost:${port}/v1`, model: model.modelId }
+    // Only `cloud` and `nim` remain; anything else left with the local runtime source.
+    throw new Error(`Cannot resolve model "${model.modelId}": unsupported source "${model.source}"`)
   }
 
   /** Reads the per-model probe log (keyed by managed-model key), if any. */
@@ -168,12 +173,12 @@ export class ModelManager implements vscode.Disposable {
   }
 
   /**
-   * User flow: pick a source (cloud/NIM/local), then publisher and model from
+   * User flow: pick a source (cloud/NIM), then publisher and model from
    * the NVIDIA catalog, and add it to the managed list.
    */
   async addModelFlow(sourceArg?: ModelSource): Promise<ManagedModel | undefined> {
     const source: ModelSource = sourceArg ?? (await vscode.window.showQuickPick(
-      (['cloud', 'nim', 'local'] as ModelSource[]).map(s => ({ label: SOURCE_LABELS[s], source: s })),
+      (['cloud', 'nim'] as ModelSource[]).map(s => ({ label: SOURCE_LABELS[s], source: s })),
       { placeHolder: 'Where should this model run?' }))?.source ?? 'cloud'
 
     let catalog: CatalogModel[]
@@ -219,17 +224,6 @@ export class ModelManager implements vscode.Disposable {
         `Added ${m.id} as NIM. Start the container now?`, 'Yes', 'No')
       if (startNow === 'Yes')
         await vscode.commands.executeCommand('vidia.ncp.startNimItem', added)
-    } else if (source === 'local') {
-      const portRaw = await vscode.window.showInputBox({
-        prompt: 'Port of your local OpenAI-compatible runtime (lemonade/ollama/NIM)',
-        value: '8000',
-        ignoreFocusOut: true
-      })
-      const port = Number(portRaw ?? 8000)
-      added = this.add({
-        modelId: m.id, name: m.name, publisher: m.publisher,
-        source, contextLength: 32768, localPort: port
-      })
     } else {
       added = this.add({
         modelId: m.id, name: m.name, publisher: m.publisher,

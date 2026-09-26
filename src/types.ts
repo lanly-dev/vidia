@@ -4,7 +4,7 @@ import type { NvidiaClient } from './nvidiaClient'
 import type { SecretManager } from './secretManager'
 import type { VidiaItem } from './vidiaTreeItem'
 
-export type ModelSource = 'cloud' | 'nim' | 'local'
+export type ModelSource = 'cloud' | 'nim'
 
 /**
  * Shared services created once at activation (audio-lab style: plain module
@@ -29,7 +29,7 @@ export interface ModelProbe {
 	httpStatus?: number
 }
 
-/** A model managed by the extension (added by the user into one of the three groups). */
+/** A model managed by the extension (added by the user into one of the two groups). */
 export interface ManagedModel {
 	/** Unique key: `${source}:${modelId}` */
 	key: string
@@ -45,8 +45,6 @@ export interface ManagedModel {
 	nimImage?: string
 	/** Host port the NIM container is published on. */
 	nimPort?: number
-	/** Host port of the local runtime (lemonade/ollama/custom). */
-	localPort?: number
 }
 
 /**

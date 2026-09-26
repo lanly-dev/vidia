@@ -3,12 +3,11 @@ import * as vscode from 'vscode'
 import type { ManagedModel, ModelProbe, ModelStatus } from './types'
 import { ModelDecorationProvider } from './modelDecorations'
 
-export type VidiaSource = 'cloud' | 'nim' | 'local'
+export type VidiaSource = 'cloud' | 'nim'
 
 /** Human-readable group labels, kept here (leaf module) to avoid import cycles. */
 export const SOURCE_LABELS: Record<VidiaSource, string> = {
   cloud: 'Cloud · Free Endpoint',
-  local: 'Local · Runtime',
   nim: 'NIM · Self-Hosted'
 }
 
@@ -76,8 +75,7 @@ export class VidiaItem {
         item.description = 'setup required'
         return item
       }
-      item.iconPath = new vscode.ThemeIcon(
-        source === 'cloud' ? 'cloud' : source === 'nim' ? 'vm-active' : 'desktop-download')
+      item.iconPath = new vscode.ThemeIcon(source === 'cloud' ? 'cloud' : 'vm-active')
       return item
     }
     if (this.kind === 'message') {
@@ -107,8 +105,7 @@ export class VidiaItem {
     // rows are greyed out via FileDecoration and show a warning glyph.
     item.iconPath = isDisabled
       ? new vscode.ThemeIcon('warning', new vscode.ThemeColor('disabledForeground'))
-      : new vscode.ThemeIcon(
-        m.source === 'cloud' ? 'cloud' : m.source === 'nim' ? 'server-process' : 'code')
+      : new vscode.ThemeIcon(m.source === 'cloud' ? 'cloud' : 'server-process')
     item.command = { command: setChatCommand, title: 'Use for Chat', arguments: [m.key] }
     return item
   }
