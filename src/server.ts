@@ -37,6 +37,7 @@ export default class Server {
 
     this.disposable.push(this.logs)
     this.disposable.push(this.manager)
+    this.disposable.push(this.nim)
   }
 
   /** Read-only view of the services assembled in the constructor. */
@@ -44,11 +45,11 @@ export default class Server {
     return { secrets: this.secrets, client: this.client, manager: this.manager, nim: this.nim }
   }
 
-  /** Register the chat harness */
-  registerChatHarness(context: ExtensionContext): Disposable[] {
+  /** Register the chat harness (provider + @vidia participant). */
+  registerChatHarness(): Disposable[] {
     const { client, manager } = this.getServices()
     const provider = new VidiaLmProvider(manager, client, manager.onDidChange)
-    return [provider.register(), registerChatParticipant(context, 'vidia')]
+    return [provider.register(), registerChatParticipant('vidia')]
   }
 
   /** Opens the add-model flow; `sourceArg` preselects the group when supplied. */

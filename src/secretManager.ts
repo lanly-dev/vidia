@@ -21,7 +21,6 @@ export class SecretManager {
 
   private async syncKeyExistsContext(): Promise<void> {
     const exists = !!(await this.context.secrets.get(NVIDIA_KEY))
-    void this.context.globalState.update(KEY_EXISTS_CONTEXT_KEY, exists)
     void vscode.commands.executeCommand('setContext', KEY_EXISTS_CONTEXT_KEY, exists)
   }
 

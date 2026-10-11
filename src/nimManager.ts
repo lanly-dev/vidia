@@ -3,12 +3,15 @@ import * as cp from 'child_process'
 import type { ManagedModel, ModelArgument } from './types'
 import { refreshEvents } from './events'
 
-export class NimManager {
+export class NimManager implements vscode.Disposable {
   constructor(
     private readonly getNvidiaKey: () => string | undefined | Thenable<string | undefined>,
     private readonly resolveModel: (arg?: ModelArgument) => ManagedModel | undefined,
     private readonly log: (msg: string) => void
   ) { }
+
+  /** `docker logs -f` children spawned by showLogs(), keyed by container name. */
+  private readonly logStreams = new Map<string, cp.ChildProcess>()
 
   /** User flow: start the container for the selected NIM model with progress UI. */
   async startWithProgress(arg?: ModelArgument): Promise<void> {
@@ -170,12 +173,30 @@ export class NimManager {
     })
   }
 
+  /**
+   * Streams `docker logs -f` for a container into the channel. Any previous
+   * stream for the same container is killed first so repeated invocations
+   * don't stack up orphaned processes.
+   */
   async logs(model: ManagedModel, channel: vscode.OutputChannel): Promise<void> {
     const name = this.containerName(model)
+    const prev = this.logStreams.get(name)
+    if (prev && !prev.killed) prev.kill()
     const child = cp.spawn('docker', ['logs', '-f', name], { windowsHide: true })
+    this.logStreams.set(name, child)
+    child.on('exit', () => {
+      if (this.logStreams.get(name) === child) this.logStreams.delete(name)
+    })
     child.stdout?.on('data', d => channel.append(d.toString()))
     child.stderr?.on('data', d => channel.append(d.toString()))
     vscode.window.showInformationMessage(`Streaming logs of ${name} to the "VIDIA" output channel.`)
+  }
+
+  /** Kills any live `docker logs -f` streams (runs on extension deactivation). */
+  dispose(): void {
+    for (const child of this.logStreams.values())
+      if (!child.killed) child.kill()
+    this.logStreams.clear()
   }
 
   private exec(cmd: string, timeout: number): Promise<string> {

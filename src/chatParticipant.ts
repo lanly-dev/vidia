@@ -1,9 +1,11 @@
 import * as vscode from 'vscode'
 
-export function registerChatParticipant(
-  context: vscode.ExtensionContext,
-  vendor: string
-): vscode.Disposable {
+/**
+ * Creates the @vidia chat participant. The returned disposable is registered
+ * by the caller (extension.ts) — this function does not touch subscriptions
+ * itself, so the participant is never registered twice.
+ */
+export function registerChatParticipant(vendor: string): vscode.Disposable {
   const participant = vscode.chat.createChatParticipant(
     'vidia.assistant',
     async (request, chatContext, response, token) => {
@@ -55,13 +57,12 @@ export function registerChatParticipant(
       }
     })
   participant.followupProvider = {
-    provideFollowups(result: vscode.ChatResult, _ctx: vscode.ChatContext, _token: vscode.CancellationToken) {
+    provideFollowups(_result: vscode.ChatResult, _ctx: vscode.ChatContext, _token: vscode.CancellationToken) {
       return [{
         prompt: 'Explain the selected code',
         command: 'explain'
       } satisfies vscode.ChatFollowup]
     }
   }
-  context.subscriptions.push(participant)
   return participant
 }

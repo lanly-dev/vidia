@@ -7,7 +7,7 @@ import type { NimManager } from './nimManager'
 import { refreshEvents } from './events'
 import type { SecretManager } from './secretManager'
 
-export default class ModelsTreeProvider implements vscode.TreeDataProvider<VidiaItem> {
+export default class ModelsTreeProvider implements vscode.TreeDataProvider<VidiaItem>, vscode.Disposable {
   private static instance?: ModelsTreeProvider
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<VidiaItem | undefined>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
@@ -30,6 +30,9 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
 
   /** Refreshes the server/model status section of the tree. */
   refreshStatus(): void { this.refresh() }
+
+  /** Releases the tree-data change emitter (runs on extension deactivation). */
+  dispose(): void { this._onDidChangeTreeData.dispose() }
 
   private get selectedModelKey(): string | undefined {
     return vscode.workspace.getConfiguration('vidia').get<string>('chatModel', '')

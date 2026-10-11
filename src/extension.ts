@@ -1,4 +1,4 @@
-import { commands, ExtensionContext, window, Disposable } from 'vscode'
+import { commands, ExtensionContext, window } from 'vscode'
 
 import ModelsTreeProvider from './modelTreeview'
 import Server from './server'
@@ -11,7 +11,7 @@ export async function activate(context: ExtensionContext) {
   const server = new Server(context)
   await server.secrets.initKeyExistsContext()
   const p = await ModelsTreeProvider.createOrGet(server.manager, server.nim, server.secrets)
-  const harness = server.registerChatHarness(context)
+  const harness = server.registerChatHarness()
 
   // Bind the activity-bar view to its data provider
   const d0 = window.createTreeView('vidia.modelsExplorer', {
@@ -47,7 +47,7 @@ export async function activate(context: ExtensionContext) {
   server.manager.ensureCatalogFresh()
 
   context.subscriptions.push(
-    server, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, dDecorations, ...harness)
+    server, p, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, dDecorations, ...harness)
 }
 
 export function deactivate() {
