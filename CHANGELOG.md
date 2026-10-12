@@ -6,6 +6,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- NIM add flows now list real containers from the public NGC catalog instead of
+  guessing `nvcr.io/nim/<model-id>:latest` from the chat catalog (many guesses,
+  e.g. `nim/01-ai/yi-large`, never existed). Entries carry their actual latest
+  tag; custom image entry remains as an escape hatch.
+
 - Added a full NVIDIA setup check when the API key is saved: the key is verified
   against the cloud endpoint and probed for NGC pull access (`api.ngc.nvidia.com`).
   The verdict is persisted and drives the tree — the cloud group shows when the key
