@@ -7,12 +7,14 @@ import type { NimManager } from './nimManager'
 
 import { DEFAULT_BASE_URL, NvidiaApiError, NvidiaClient } from './nvidiaClient'
 import { fetchNimCatalog, type NimContainer } from './nimCatalog'
+import { verifyCatalogModels, VERDICT_TTL_MS, type CatalogVerdicts } from './catalogVerifier'
 import { refreshEvents } from './events'
 import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
 
 const STORAGE_KEY = 'vidia.managedModels'
 const CATALOG_KEY = 'vidia.modelCatalog'
 const NIM_CATALOG_KEY = 'vidia.nimCatalog'
+const VERDICTS_KEY = 'vidia.catalogVerdicts'
 const PROBE_KEY = 'vidia.modelProbes'
 /** Catalog is re-fetched when the cached snapshot is older than this. */
 const CATALOG_TTL_MS = 5 * 24 * 60 * 60 * 1000
@@ -201,6 +203,81 @@ export class ModelManager implements vscode.Disposable {
     return cached?.containers ?? []
   }
 
+  /** Reads the stored per-model liveness verdicts, if any. */
+  getCatalogVerdicts(): CatalogVerdicts {
+    return this.context.globalState.get<CatalogVerdicts>(VERDICTS_KEY) ?? {}
+  }
+
+  /** True when a fresh "dead" verdict hides the model from the Add Model list. */
+  private isVerdictDead(id: string, verdicts: CatalogVerdicts): boolean {
+    const v = verdicts[id]
+    return !!v && !v.ok && Date.now() - v.checkedAt < VERDICT_TTL_MS
+  }
+
+  /**
+   * VIDIA: Verify Cloud Catalog — probes every catalog model with a tiny
+   * request and caches per-model liveness verdicts (5 days). The Add Model
+   * pick-list hides models with a fresh "dead" verdict. Paced at ~30 RPM so
+   * the free-tier ceiling is never the thing that breaks; 401/403 aborts the
+   * run, consecutive 429s stop it early, and cancelling keeps partial results.
+   */
+  async verifyCatalogFlow(): Promise<void> {
+    const key = await this.getApiKey('cloud')
+    if (!key) {
+      const set = await vscode.window.showWarningMessage(
+        'VIDIA: set your NVIDIA API key first.', 'Set API Key')
+      if (set === 'Set API Key')
+        await vscode.commands.executeCommand('vidia.setNvidiaApiKey')
+      return
+    }
+    let catalog: CatalogModel[]
+    try {
+      catalog = await this.getCatalog(key)
+    } catch {
+      catalog = []
+    }
+    if (catalog.length === 0) {
+      await this.promptEmptyCatalog()
+      return
+    }
+    const baseUrl = vscode.workspace.getConfiguration('vidia')
+      .get<string>('baseUrl', DEFAULT_BASE_URL)
+
+    const ctrl = new AbortController()
+    const result = await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: 'Verifying cloud catalog (tiny probe per model)…',
+      cancellable: true
+    }, async (progress, token) => {
+      const sub = token.onCancellationRequested(() => ctrl.abort())
+      try {
+        return await verifyCatalogModels(baseUrl, key, catalog.map(m => m.id), {
+          signal: ctrl.signal,
+          verdicts: this.getCatalogVerdicts(),
+          onProgress: (done, total, dead) =>
+            progress.report({ message: `${done}/${total} probed, ${dead} dead` })
+        })
+      } finally {
+        sub.dispose()
+      }
+    })
+
+    // Persist even on cancel/rate-limit: partial verdicts are still useful.
+    await this.context.globalState.update(VERDICTS_KEY, result.verdicts)
+
+    if (result.abortedForAuth) {
+      await vscode.window.showErrorMessage(
+        'VIDIA: catalog verification stopped — the API key was rejected (401/403).')
+      return
+    }
+    const parts = [`${result.ok} live`, `${result.dead} dead`]
+    if (result.unknown > 0) parts.push(`${result.unknown} unknown`)
+    let msg = `VIDIA: catalog verification done — ${parts.join(', ')}.`
+    if (result.rateLimited) msg += ' Stopped early: rate limited. Re-run later to finish.'
+    else if (result.cancelled) msg += ' Cancelled; partial results kept.'
+    vscode.window.showInformationMessage(msg)
+  }
+
   /**
    * True when the stored key is NGC-enabled (NIM images can be pulled).
    * Shows guidance and returns false otherwise — callers bail out.
@@ -255,6 +332,19 @@ export class ModelManager implements vscode.Disposable {
       await this.promptEmptyCatalog()
       return undefined
     }
+    // Hide catalog models with a fresh "dead" liveness verdict (retired or
+    // not entitled for this key). If every model is dead, fall back to the
+    // full list rather than stranding the user with an empty picker.
+    const verdicts = this.getCatalogVerdicts()
+    const fullCatalog = catalog
+    const live = catalog.filter(m => !this.isVerdictDead(m.id, verdicts))
+    if (fullCatalog.length > live.length && live.length === 0) {
+      vscode.window.showWarningMessage(
+        'VIDIA: every catalog model has a "dead" liveness verdict — showing all of them. ' +
+        'Run "VIDIA: Verify Cloud Catalog" to re-check.')
+    } else
+      catalog = live
+
     const groups = [...new Set(catalog.map(m => m.publisher))]
     const picked = await vscode.window.showQuickPick(groups.map(p => ({ label: `$(folder) ${p}`, publisher: p })),
       { placeHolder: 'Choose the model publisher on build.nvidia.com' })
@@ -264,7 +354,18 @@ export class ModelManager implements vscode.Disposable {
       catalog
         .filter(m => m.publisher === picked.publisher)
         .map(m => ({ label: m.name, description: m.id, model: m })),
-      { placeHolder: `Choose a ${picked.publisher} model` })
+      {
+        // `groups` comes from the live list, so this publisher always has a
+        // live model; count how many of its siblings were hidden as dead.
+        placeHolder: (() => {
+          const totalHere = fullCatalog.filter(m => m.publisher === picked.publisher).length
+          const liveHere = catalog.filter(m => m.publisher === picked.publisher).length
+          const hiddenHere = totalHere - liveHere
+          return hiddenHere > 0
+            ? `Choose a ${picked.publisher} model (${hiddenHere} unavailable hidden)`
+            : `Choose a ${picked.publisher} model`
+        })()
+      })
     if (!modelPick) return undefined
     const m = modelPick.model
 

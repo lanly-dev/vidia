@@ -10,6 +10,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   guessing `nvcr.io/nim/<model-id>:latest` from the chat catalog (many guesses,
   e.g. `nim/01-ai/yi-large`, never existed). Entries carry their actual latest
   tag; custom image entry remains as an escape hatch.
+- New `VIDIA: Verify Cloud Catalog` command probes every cloud catalog model
+  with a tiny request (paced ~30 RPM, cancellable) and caches per-model
+  liveness verdicts for 5 days; the Add Model pick-list hides models with a
+  fresh "dead" verdict (retired or not entitled for the key).
 
 - Added a full NVIDIA setup check when the API key is saved: the key is verified
   against the cloud endpoint and probed for NGC pull access (`api.ngc.nvidia.com`).
