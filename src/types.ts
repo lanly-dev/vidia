@@ -3,6 +3,7 @@ import type { NimManager } from './nimManager'
 import type { NvidiaClient } from './nvidiaClient'
 import type { SecretManager } from './secretManager'
 import type { VidiaItem } from './vidiaTreeItem'
+import type { NimContainer } from './nimCatalog'
 
 export type ModelSource = 'cloud' | 'nim'
 
@@ -75,6 +76,12 @@ export interface CatalogCache {
 	fetchedAt: number
 	baseUrl: string
 	models: CatalogModel[]
+}
+
+/** Cached NIM container catalog (NGC search snapshot + timestamp). */
+export interface NimCatalogCache {
+	fetchedAt: number
+	containers: NimContainer[]
 }
 
 export interface ChatTarget {

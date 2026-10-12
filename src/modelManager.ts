@@ -1,15 +1,18 @@
 import * as vscode from 'vscode'
 import type {
-  CatalogCache, CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelProbe, ModelSource, SetupState
+  CatalogCache, CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelProbe, ModelSource,
+  NimCatalogCache, SetupState
 } from './types'
 import type { NimManager } from './nimManager'
 
 import { DEFAULT_BASE_URL, NvidiaApiError, NvidiaClient } from './nvidiaClient'
+import { fetchNimCatalog, type NimContainer } from './nimCatalog'
 import { refreshEvents } from './events'
 import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
 
 const STORAGE_KEY = 'vidia.managedModels'
 const CATALOG_KEY = 'vidia.modelCatalog'
+const NIM_CATALOG_KEY = 'vidia.nimCatalog'
 const PROBE_KEY = 'vidia.modelProbes'
 /** Catalog is re-fetched when the cached snapshot is older than this. */
 const CATALOG_TTL_MS = 5 * 24 * 60 * 60 * 1000
@@ -170,6 +173,34 @@ export class ModelManager implements vscode.Disposable {
     void this.getCatalog(undefined, {}).catch(() => undefined)
   }
 
+  /** Reads the cached NIM container catalog (NGC snapshot + timestamp), if any. */
+  getNimCatalogCache(): NimCatalogCache | undefined {
+    return this.context.globalState.get<NimCatalogCache>(NIM_CATALOG_KEY)
+  }
+
+  /**
+   * Returns the NIM container catalog from the globalState cache. Fetches live
+   * from the public NGC catalog search only when the snapshot is missing/stale
+   * (older than 5 days) or `forceRefresh` is set. Falls back to the cached
+   * snapshot when the network fetch fails.
+   */
+  async getNimCatalog(opts: { forceRefresh?: boolean } = {}): Promise<NimContainer[]> {
+    const cached = this.getNimCatalogCache()
+    const stale = !cached || Date.now() - cached.fetchedAt > CATALOG_TTL_MS
+    if (opts.forceRefresh || stale) {
+      try {
+        const containers = await fetchNimCatalog()
+        const cache: NimCatalogCache = { fetchedAt: Date.now(), containers }
+        await this.context.globalState.update(NIM_CATALOG_KEY, cache)
+        return containers
+      } catch {
+        if (cached) return cached.containers
+        throw new Error('VIDIA: could not reach the NGC catalog and no cached NIM list exists.')
+      }
+    }
+    return cached?.containers ?? []
+  }
+
   /**
    * True when the stored key is NGC-enabled (NIM images can be pulled).
    * Shows guidance and returns false otherwise — callers bail out.
@@ -186,15 +217,33 @@ export class ModelManager implements vscode.Disposable {
   }
 
   /**
-   * User flow: pick a source (cloud/NIM), then publisher and model from
-   * the NVIDIA catalog, and add it to the managed list.
+   * User flow: pick a source (cloud/NIM). Cloud models come from the NVIDIA
+   * chat catalog; NIM containers come from the NGC catalog (containers that
+   * actually exist). The pick is added to the managed list.
    */
   async addModelFlow(sourceArg?: ModelSource): Promise<ManagedModel | undefined> {
     const source: ModelSource = sourceArg ?? (await vscode.window.showQuickPick(
       (['cloud', 'nim'] as ModelSource[]).map(s => ({ label: SOURCE_LABELS[s], source: s })),
       { placeHolder: 'Where should this model run?' }))?.source ?? 'cloud'
 
-    if (source === 'nim' && !await this.checkNgcGate()) return undefined
+    if (source === 'nim') {
+      if (!await this.checkNgcGate()) return undefined
+      const picked = await this.pickNimContainer()
+      if (!picked) return undefined
+      const portRaw = await vscode.window.showInputBox({
+        prompt: 'Host port for the NIM server', value: '8000', ignoreFocusOut: true
+      })
+      const port = Number(portRaw ?? 8000)
+      const addedNim = this.add({
+        modelId: picked.modelId, name: picked.name, publisher: picked.publisher,
+        source, contextLength: 131072, nimImage: picked.image, nimPort: port
+      })
+      const startNow = await vscode.window.showInformationMessage(
+        `Added ${picked.modelId} as NIM. Start the container now?`, 'Yes', 'No')
+      if (startNow === 'Yes')
+        await vscode.commands.executeCommand('vidia.ncp.startNimItem', addedNim)
+      return addedNim
+    }
 
     let catalog: CatalogModel[]
     try {
@@ -219,34 +268,12 @@ export class ModelManager implements vscode.Disposable {
     if (!modelPick) return undefined
     const m = modelPick.model
 
-    let added: ManagedModel
-    if (source === 'nim') {
-      const image = await vscode.window.showInputBox({
-        prompt: 'NIM container image',
-        value: `nvcr.io/nim/${m.id}:latest`,
-        ignoreFocusOut: true
-      })
-      if (!image) return undefined
-      const portRaw = await vscode.window.showInputBox({
-        prompt: 'Host port for the NIM server', value: '8000', ignoreFocusOut: true
-      })
-      const port = Number(portRaw ?? 8000)
-      added = this.add({
-        modelId: m.id, name: m.name, publisher: m.publisher,
-        source, contextLength: 131072, nimImage: image, nimPort: port
-      })
-      const startNow = await vscode.window.showInformationMessage(
-        `Added ${m.id} as NIM. Start the container now?`, 'Yes', 'No')
-      if (startNow === 'Yes')
-        await vscode.commands.executeCommand('vidia.ncp.startNimItem', added)
-    } else {
-      added = this.add({
-        modelId: m.id, name: m.name, publisher: m.publisher,
-        source: 'cloud', contextLength: 131072
-      })
-      vscode.window.showInformationMessage(
-        `${m.id} added using the free NVIDIA endpoint. It is now available in the chat model picker.`)
-    }
+    const added: ManagedModel = this.add({
+      modelId: m.id, name: m.name, publisher: m.publisher,
+      source: 'cloud', contextLength: 131072
+    })
+    vscode.window.showInformationMessage(
+      `${m.id} added using the free NVIDIA endpoint. It is now available in the chat model picker.`)
     return added
   }
 
@@ -260,11 +287,80 @@ export class ModelManager implements vscode.Disposable {
       void vscode.env.openExternal(vscode.Uri.parse('https://build.nvidia.com/models'))
   }
 
+  /** Normalized result of picking a NIM container (catalog entry or custom image). */
+  private async pickNimContainer(): Promise<
+    { modelId: string, image: string, name: string, publisher: string } | undefined> {
+    let catalog: NimContainer[] = []
+    try {
+      catalog = await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Loading NIM catalog…' },
+        () => this.getNimCatalog())
+    } catch {
+      catalog = []
+    }
+    if (catalog.length === 0) {
+      const retry = await vscode.window.showErrorMessage(
+        'VIDIA: could not reach the NGC catalog and no cached NIM list exists.',
+        'Retry', 'Use Custom Image…')
+      if (retry === 'Use Custom Image…') return this.pickCustomNimImage()
+      if (retry === 'Retry') return this.pickNimContainer()
+      return undefined
+    }
+
+    interface NimPick extends vscode.QuickPickItem {
+      custom?: boolean
+      container?: NimContainer
+    }
+    const pick = await vscode.window.showQuickPick<NimPick>(
+      [
+        ...catalog.map(c => ({
+          label: c.displayName,
+          description: `${c.image}:${c.tag}`,
+          detail: c.description.slice(0, 120),
+          container: c
+        })),
+        { kind: vscode.QuickPickItemKind.Separator, label: '' },
+        { label: 'Custom container image…', description: 'type any NIM image (nvcr.io/nim/…)', custom: true }
+      ],
+      {
+        title: 'Add NIM Model',
+        placeHolder: 'Pick a NIM container to download & run',
+        matchOnDescription: true
+      })
+    if (!pick) return undefined
+    if (pick.custom) return this.pickCustomNimImage()
+    if (pick.container) {
+      const c = pick.container
+      return { modelId: c.modelId, image: `${c.image}:${c.tag}`, name: c.displayName, publisher: c.publisher }
+    }
+    return undefined
+  }
+
+  /** Manual NIM image entry; derives the served model id from the image path. */
+  private async pickCustomNimImage(): Promise<
+    { modelId: string, image: string, name: string, publisher: string } | undefined> {
+    const input = await vscode.window.showInputBox({
+      prompt: 'NIM container image to run',
+      placeHolder: 'nvcr.io/nim/<publisher>/<model>:<tag>',
+      ignoreFocusOut: true
+    })
+    if (!input?.trim()) return undefined
+    const image = input.trim()
+    // Model id served by NIM = image path after "nvcr.io/nim/" without the tag.
+    const modelId = image.replace(/^.*nvcr\.io\/nim\//, '').replace(/:[^:/]+$/, '') || image
+    return {
+      modelId,
+      image,
+      name: modelId.split('/').pop() ?? modelId,
+      publisher: modelId.includes('/') ? modelId.slice(0, modelId.indexOf('/')) : 'custom'
+    }
+  }
+
   /**
    * Inline "+" on the NIM group header: verifies Docker + NVIDIA GPU first
    * (the header shows a warning icon while either is missing), then offers
-   * the cloud catalog as a pick-list of NIM containers to download
-   * (`nvcr.io/nim/<id>:latest`) and optionally start right away.
+   * the NGC NIM catalog as a pick-list of containers that actually exist
+   * and optionally starts the container right away.
    */
   async addNimFlow(nim?: NimManager): Promise<void> {
     // 0. NGC gate — without pull access the container can never start.
@@ -283,67 +379,17 @@ export class ModelManager implements vscode.Disposable {
       return
     }
 
-    // 2. Catalog → pick-list (catalog ids map 1:1 to NIM image paths).
-    let catalog: CatalogModel[] = []
-    try {
-      catalog = await this.getCatalog(await this.getApiKey('cloud'))
-    } catch {
-      catalog = []
-    }
-    if (catalog.length === 0) {
-      await this.promptEmptyCatalog()
-      return
-    }
-
-    interface NimPick extends vscode.QuickPickItem {
-      custom?: boolean
-      model?: CatalogModel
-    }
-    const pick = await vscode.window.showQuickPick<NimPick>(
-      [
-        ...catalog.map(c => ({
-          label: c.name,
-          description: c.id,
-          model: c
-        })),
-        { kind: vscode.QuickPickItemKind.Separator, label: '' },
-        { label: 'Custom container image…', description: 'type any NIM image (nvcr.io/nim/…)', custom: true }
-      ],
-      {
-        title: 'Add NIM Model',
-        placeHolder: 'Pick a model to download & run as a NIM container',
-        matchOnDescription: true
-      })
-    if (!pick) return
-
-    let modelId: string
-    let image: string
-    let name: string
-    let publisher: string
-    if (pick.custom) {
-      const input = await vscode.window.showInputBox({
-        prompt: 'NIM container image to run',
-        placeHolder: 'nvcr.io/nim/<publisher>/<model>:latest',
-        ignoreFocusOut: true
-      })
-      if (!input?.trim()) return
-      image = input.trim()
-      // Model id served by NIM = image path after "nvcr.io/nim/" without the tag.
-      modelId = image.replace(/^.*nvcr\.io\/nim\//, '').replace(/:[^:/]+$/, '') || image
-      name = modelId.split('/').pop() ?? modelId
-      publisher = modelId.includes('/') ? modelId.slice(0, modelId.indexOf('/')) : 'custom'
-    } else if (pick.model) {
-      modelId = pick.model.id
-      image = `nvcr.io/nim/${modelId}:latest`
-      name = pick.model.name
-      publisher = pick.model.publisher
-    } else
-      return
+    // 2. NGC NIM catalog → pick-list of containers that actually exist.
+    const picked = await this.pickNimContainer()
+    if (!picked) return
 
     // 3. Persist, then offer to pull + run the container immediately.
-    const added = this.add({ source: 'nim', modelId, name, publisher, contextLength: 131072, nimImage: image })
+    const added = this.add({
+      source: 'nim', modelId: picked.modelId, name: picked.name,
+      publisher: picked.publisher, contextLength: 131072, nimImage: picked.image
+    })
     const start = await vscode.window.showInformationMessage(
-      `Added ${modelId}. Start its NIM container now? Docker will download ${image} on first run.`,
+      `Added ${picked.modelId}. Start its NIM container now? Docker will download ${picked.image} on first run.`,
       'Start Now', 'Later')
     if (start === 'Start Now' && nim) await nim.startWithProgress(added)
   }
