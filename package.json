@@ -160,6 +160,12 @@
         "title": "Re-check NVIDIA Setup",
         "category": "VIDIA",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "vidia.verifyCatalog",
+        "title": "Verify Cloud Catalog",
+        "category": "VIDIA",
+        "icon": "$(check)"
       }
     ],
     "menus": {

@@ -124,6 +124,11 @@ export default class Server {
     await this.manager.refreshCatalogFlow()
   }
 
+  /** Probes every catalog model and caches per-model liveness verdicts. */
+  async verifyCatalog(): Promise<void> {
+    await this.manager.verifyCatalogFlow()
+  }
+
   openSettings(): Thenable<unknown> {
     return commands.executeCommand('workbench.action.openSettings', '@vidia')
   }
