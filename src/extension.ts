@@ -41,13 +41,18 @@ export async function activate(context: ExtensionContext) {
   const d13 = rc('vidia.refreshCatalog', () => server.refreshCatalog())
   const d14 = rc('vidia.ncp.addNimModelItem', () => server.addNim())
   const d15 = rc('vidia.clearApiKey', () => server.clearApiKey())
+  const d16 = rc('vidia.recheckSetup', () => server.recheckSetup())
 
   // Prefetch the model catalog in the background (skipped when the cached
   // snapshot is less than 5 days old); never blocks activation.
   server.manager.ensureCatalogFresh()
 
+  // Backfill the setup-check verdict for keys stored before this feature
+  // existed (silent; the tree shows the pre-check state until it lands).
+  void server.secrets.ensureSetupState()
+
   context.subscriptions.push(
-    server, p, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, dDecorations, ...harness)
+    server, p, d0, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, dDecorations, ...harness)
 }
 
 export function deactivate() {

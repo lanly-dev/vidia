@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 import type {
-  CatalogCache, CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelProbe, ModelSource
+  CatalogCache, CatalogModel, ChatTarget, ManagedModel, ModelArgument, ModelProbe, ModelSource, SetupState
 } from './types'
 import type { NimManager } from './nimManager'
 
@@ -23,7 +23,8 @@ export class ModelManager implements vscode.Disposable {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly getApiKey: (source: ModelSource) => string | undefined | Thenable<string | undefined>
+    private readonly getApiKey: (source: ModelSource) => string | undefined | Thenable<string | undefined>,
+    private readonly getSetupState: () => SetupState | undefined
   ) {
     const stored = context.globalState.get<ManagedModel[]>(STORAGE_KEY, [])
     // Persisted state can predate the removal of the `local` runtime source;
@@ -170,6 +171,21 @@ export class ModelManager implements vscode.Disposable {
   }
 
   /**
+   * True when the stored key is NGC-enabled (NIM images can be pulled).
+   * Shows guidance and returns false otherwise — callers bail out.
+   */
+  private async checkNgcGate(): Promise<boolean> {
+    if (this.getSetupState()?.ngcOk !== false) return true
+    const choice = await vscode.window.showErrorMessage(
+      'This NVIDIA API key is not NGC-enabled, so NIM images cannot be pulled from nvcr.io.',
+      'Re-check Setup', 'Get an NGC API Key')
+    if (choice === 'Re-check Setup') await vscode.commands.executeCommand('vidia.recheckSetup')
+    else if (choice === 'Get an NGC API Key')
+      void vscode.env.openExternal(vscode.Uri.parse('https://build.nvidia.com/explore/discover'))
+    return false
+  }
+
+  /**
    * User flow: pick a source (cloud/NIM), then publisher and model from
    * the NVIDIA catalog, and add it to the managed list.
    */
@@ -177,6 +193,8 @@ export class ModelManager implements vscode.Disposable {
     const source: ModelSource = sourceArg ?? (await vscode.window.showQuickPick(
       (['cloud', 'nim'] as ModelSource[]).map(s => ({ label: SOURCE_LABELS[s], source: s })),
       { placeHolder: 'Where should this model run?' }))?.source ?? 'cloud'
+
+    if (source === 'nim' && !await this.checkNgcGate()) return undefined
 
     let catalog: CatalogModel[]
     try {
@@ -249,6 +267,8 @@ export class ModelManager implements vscode.Disposable {
    * (`nvcr.io/nim/<id>:latest`) and optionally start right away.
    */
   async addNimFlow(nim?: NimManager): Promise<void> {
+    // 0. NGC gate — without pull access the container can never start.
+    if (!await this.checkNgcGate()) return
     // 1. Preflight — forced so a fresh Docker/driver install is picked up now.
     const env = await nim?.checkEnv(true)
     refreshEvents.fire()

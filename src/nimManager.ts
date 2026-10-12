@@ -1,13 +1,14 @@
 import * as vscode from 'vscode'
 import * as cp from 'child_process'
-import type { ManagedModel, ModelArgument } from './types'
+import type { ManagedModel, ModelArgument, SetupState } from './types'
 import { refreshEvents } from './events'
 
 export class NimManager implements vscode.Disposable {
   constructor(
     private readonly getNvidiaKey: () => string | undefined | Thenable<string | undefined>,
     private readonly resolveModel: (arg?: ModelArgument) => ManagedModel | undefined,
-    private readonly log: (msg: string) => void
+    private readonly log: (msg: string) => void,
+    private readonly getSetupState: () => SetupState | undefined
   ) { }
 
   /** `docker logs -f` children spawned by showLogs(), keyed by container name. */
@@ -124,12 +125,18 @@ export class NimManager implements vscode.Disposable {
 
   /** Runs the NIM container for a model and resolves once the server is healthy. */
   async run(model: ManagedModel, token?: vscode.CancellationToken): Promise<void> {
+    const remoteHost = vscode.workspace.getConfiguration('vidia.nim').get<string>('remoteHost', '')
+    // Without NGC pull access the docker pull is doomed — fail fast with guidance.
+    if (!remoteHost && this.getSetupState()?.ngcOk === false) {
+      throw new Error(
+        'This NVIDIA API key is not NGC-enabled, so NIM images cannot be pulled from nvcr.io. ' +
+        'Use a key from an NGC-linked account, or run VIDIA: Re-check NVIDIA Setup after fixing the key.')
+    }
     const rt = await this.assertPrerequisites()
     await this.stop(model, true)
     const port = model.nimPort ?? vscode.workspace.getConfiguration('vidia.nim').get<number>('defaultPort', 8000)
     const name = this.containerName(model)
     const key = (await this.getNvidiaKey()) ?? ''
-    const remoteHost = vscode.workspace.getConfiguration('vidia.nim').get<string>('remoteHost', '')
     if (remoteHost) {
       this.log(`Using remote NIM host ${remoteHost} for ${model.modelId}; skipping local container launch.`)
       return

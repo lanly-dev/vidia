@@ -27,11 +27,13 @@ export default class Server {
     this.nim = new NimManager(
       () => this.secrets.getNvidiaKey(),
       (arg) => this.manager.resolveModel(arg),
-      (msg) => this.logs.appendLine(msg)
+      (msg) => this.logs.appendLine(msg),
+      () => this.secrets.getSetupState()
     )
     this.manager = new ModelManager(
       context,
-      () => this.secrets.getNvidiaKey()
+      () => this.secrets.getNvidiaKey(),
+      () => this.secrets.getSetupState()
     )
     this.manager.setClient(this.client)
 
@@ -101,6 +103,11 @@ export default class Server {
 
   async changeNvidiaApiKey(): Promise<void> {
     await this.secrets.changeNvidiaKey()
+  }
+
+  /** Re-runs the full NVIDIA setup check for the stored key. */
+  async recheckSetup(): Promise<void> {
+    await this.secrets.recheckSetup()
   }
 
   /** Removes the stored API key(s) after confirmation (see SecretManager). */

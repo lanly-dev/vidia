@@ -2,9 +2,12 @@ import * as vscode from 'vscode'
 import { refreshEvents } from './events'
 import { DEFAULT_BASE_URL, NvidiaApiError } from './nvidiaClient'
 import { checkKey } from './keyVerifier'
+import { checkNgc } from './ngcVerifier'
+import type { SetupState } from './types'
 
 const NVIDIA_KEY = 'vidia.nvapiKey'
 const KEY_EXISTS_CONTEXT_KEY = 'vidia:setupKeyExists'
+const SETUP_KEY = 'vidia.setupState'
 
 /**
  * Owns API keys stored in VS Code SecretStorage.
@@ -150,9 +153,103 @@ export class SecretManager {
     await this.context.secrets.delete(name)
     await this.context.secrets.store(name, trimmed)
     await this.syncKeyExistsContext()
+    // Full setup: the cloud verdict is known from the check above; now prove
+    // (or disprove) NGC pull access and persist both for the tree view.
+    const ngcOk = await this.runNgcStep(trimmed, true)
+    const setup = await this.writeSetupState(!failure, ngcOk)
     refreshEvents.fire()
-    vscode.window.showInformationMessage(`${prompt} stored securely (SecretStorage). Get/refresh keys at ${link}`)
+    vscode.window.showInformationMessage(
+      `${prompt} stored securely (SecretStorage). ${this.setupSummary(setup)}`)
     return true
+  }
+
+  /** Reads the last setup-check result, if the key was saved after this feature landed. */
+  getSetupState(): SetupState | undefined {
+    return this.context.globalState.get<SetupState>(SETUP_KEY)
+  }
+
+  /** Persists a setup-check result and refreshes the tree. */
+  private async writeSetupState(cloudOk: boolean, ngcOk: boolean): Promise<SetupState> {
+    const setup: SetupState = { cloudOk, ngcOk, checkedAt: Date.now() }
+    await this.context.globalState.update(SETUP_KEY, setup)
+    refreshEvents.fire()
+    return setup
+  }
+
+  /**
+   * NGC capability probe for a key. Never throws: an inconclusive answer
+   * (offline, endpoint trouble) is reported as "not enabled" — a false
+   * positive here would be worse than a re-check.
+   */
+  private async determineNgc(key: string): Promise<boolean> {
+    try {
+      return (await checkNgc(key)).ngc
+    } catch {
+      return false
+    }
+  }
+
+  /** Runs the NGC probe, optionally behind a progress notification. */
+  private async runNgcStep(key: string, withProgress: boolean): Promise<boolean> {
+    const run = (): Promise<boolean> => this.determineNgc(key)
+    return withProgress
+      ? vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: 'Checking NGC access…' }, run)
+      : run()
+  }
+
+  private setupSummary(setup: SetupState): string {
+    const cloud = setup.cloudOk ? 'Cloud endpoint: OK' : 'Cloud endpoint: key not verified'
+    const ngc = setup.ngcOk ? 'NGC pull access: enabled' : 'NGC pull access: not enabled'
+    return `NVIDIA setup — ${cloud}; ${ngc}.`
+  }
+
+  /**
+   * Re-runs the full setup check for the currently stored key
+   * (VIDIA: Re-check NVIDIA Setup). Re-verifies cloud access and NGC pull
+   * access, persists the result, and reports it.
+   */
+  async recheckSetup(): Promise<void> {
+    const key = await this.context.secrets.get(NVIDIA_KEY)
+    if (!key) {
+      vscode.window.showWarningMessage('No NVIDIA API key stored yet — set one first.')
+      return
+    }
+    const setup = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: 'Checking NVIDIA setup…' },
+      async () => {
+        let cloudOk = false
+        try {
+          await this.testKey(key)
+          cloudOk = true
+        } catch {
+          cloudOk = false
+        }
+        return this.writeSetupState(cloudOk, await this.determineNgc(key))
+      })
+    vscode.window.showInformationMessage(this.setupSummary(setup))
+  }
+
+  /**
+   * Backfill for keys stored before the setup check existed: runs it once,
+   * silently, the next time the extension activates.
+   */
+  async ensureSetupState(): Promise<void> {
+    if (this.getSetupState()) return
+    const key = await this.context.secrets.get(NVIDIA_KEY)
+    if (!key) return
+    try {
+      let cloudOk = false
+      try {
+        await this.testKey(key)
+        cloudOk = true
+      } catch {
+        cloudOk = false
+      }
+      await this.writeSetupState(cloudOk, await this.determineNgc(key))
+    } catch {
+      // Silent — the tree simply shows the pre-check state until re-run.
+    }
   }
 
   /** Validates a cloud API key and returns the model catalog.
@@ -194,6 +291,7 @@ export class SecretManager {
     if (!confirm) return
 
     await this.context.secrets.delete(NVIDIA_KEY)
+    await this.context.globalState.update(SETUP_KEY, undefined)
     await this.syncKeyExistsContext()
     refreshEvents.fire()
     vscode.window.showInformationMessage('Cleared NVIDIA API key from SecretStorage.', { modal: false })

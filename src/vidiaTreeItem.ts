@@ -32,12 +32,23 @@ export class VidiaItem {
   readonly probe?: ModelProbe
   /** Prerequisite failures for group rows (e.g. missing Docker / NVIDIA GPU). */
   readonly envIssues?: string[]
+  /** Setup-check verdicts for group rows; absent on model/message rows. */
+  readonly cloudOk?: boolean
+  readonly ngcOk?: boolean
 
   constructor(
     kind: VidiaItem['kind'],
     label: string,
     collapsible: vscode.TreeItemCollapsibleState,
-    opts?: { model?: ManagedModel, source?: ModelSource, running?: boolean, probe?: ModelProbe, envIssues?: string[] }
+    opts?: {
+      model?: ManagedModel
+      source?: ModelSource
+      running?: boolean
+      probe?: ModelProbe
+      envIssues?: string[]
+      cloudOk?: boolean
+      ngcOk?: boolean
+    }
   ) {
     this.kind = kind
     this.label = label
@@ -47,6 +58,8 @@ export class VidiaItem {
     this.running = opts?.running
     this.probe = opts?.probe
     this.envIssues = opts?.envIssues
+    this.cloudOk = opts?.cloudOk
+    this.ngcOk = opts?.ngcOk
   }
 
   toTreeItem(selectedModelKey: string | undefined, setChatCommand: string): vscode.TreeItem {
@@ -55,6 +68,24 @@ export class VidiaItem {
       const source = this.source ?? 'cloud'
       item.id = `group:${source}`
       item.contextValue = `group:${source}`
+      // Key-level verdicts from the setup check come first: a non-NGC key
+      // disables the NIM group, an unverified key flags the cloud group.
+      if (source === 'nim' && this.ngcOk === false) {
+        item.iconPath = new vscode.ThemeIcon('warning',
+          new vscode.ThemeColor('problemsWarningIcon.foreground'))
+        item.tooltip = 'This NVIDIA API key is not NGC-enabled, so NIM images cannot be pulled ' +
+          'from nvcr.io.\nUse a key from an NGC-linked account, or run "VIDIA: Re-check NVIDIA Setup".'
+        item.description = 'NGC not enabled'
+        return item
+      }
+      if (source === 'cloud' && this.cloudOk === false) {
+        item.iconPath = new vscode.ThemeIcon('warning',
+          new vscode.ThemeColor('problemsWarningIcon.foreground'))
+        item.tooltip = 'The stored key was never verified against the cloud endpoint ' +
+          '(it was saved without checking).\nRun "VIDIA: Re-check NVIDIA Setup" to verify it.'
+        item.description = 'unverified key'
+        return item
+      }
       // Prerequisite failures (no Docker / no NVIDIA GPU) turn the header
       // into a warning row; tooltip lists exactly what is missing.
       if (this.envIssues?.length) {
