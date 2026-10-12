@@ -67,9 +67,13 @@ export class NimManager implements vscode.Disposable {
     const TTL_MS = 60_000
     if (!force && this.envCache && Date.now() - this.envCache.checkedAt < TTL_MS) return this.envCache
     const issues: string[] = []
-    if (!await this.detectRuntime()) {
+    const rt = await this.detectRuntime()
+    if (!rt) {
       issues.push('Docker (or Podman) not found — install Docker Desktop: ' +
         'https://www.docker.com/products/docker-desktop/')
+    } else if (!await this.daemonUp(rt)) {
+      issues.push(`${rt === 'docker' ? 'Docker Desktop' : 'Podman'} is installed but its daemon ` +
+        `isn't running — start it, then retry. (VIDIA: Refresh Models re-checks.)`)
     }
     if (!await this.hasNvidiaGpu())
       issues.push('No NVIDIA GPU detected — "nvidia-smi" is missing or failing; install/update the NVIDIA driver.')
@@ -98,12 +102,28 @@ export class NimManager implements vscode.Disposable {
     })
   }
 
+  /**
+   * True when the container daemon answers (`docker info`). Catches the
+   * "binary installed, daemon not running" case (e.g. Docker Desktop not
+   * started — the npipe/socket simply isn't there).
+   */
+  private daemonUp(rt: string): Promise<boolean> {
+    return new Promise(resolve => {
+      cp.exec(`${rt} info`, { windowsHide: true, timeout: 10_000 }, err => resolve(!err))
+    })
+  }
+
   async assertPrerequisites(): Promise<string> {
     const rt = await this.detectRuntime()
     if (!rt) {
       throw new Error(
         'Docker (or Podman) was not found. Install Docker Desktop to run NIM containers:' +
         ' https://www.docker.com/products/docker-desktop/')
+    }
+    if (!await this.daemonUp(rt)) {
+      const product = rt === 'docker' ? 'Docker Desktop' : 'Podman'
+      throw new Error(
+        `${product} is installed but its daemon isn't running — start ${product}, then try again.`)
     }
 
     const key = await this.getNvidiaKey()
