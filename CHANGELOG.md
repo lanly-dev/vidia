@@ -6,6 +6,12 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- Added a full NVIDIA setup check when the API key is saved: the key is verified
+  against the cloud endpoint and probed for NGC pull access (`api.ngc.nvidia.com`).
+  The verdict is persisted and drives the tree — the cloud group shows when the key
+  is valid, and the NIM group is disabled with guidance when the key is not
+  NGC-enabled. New `VIDIA: Re-check NVIDIA Setup` command re-runs the check.
+
 - Initial release
 - Added `viewsWelcome` welcome content to the Models Explorer tree view prompting users to set their NVIDIA API key when not configured.
 - Added `VIDIA: Clear API Key` command (also a `$(clear-all)` button in the

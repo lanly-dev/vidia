@@ -44,6 +44,15 @@ export interface ManagedModel {
 	nimPort?: number
 }
 
+/** Result of the one-time NVIDIA setup check (runs when the API key is saved). */
+export interface SetupState {
+	/** The key was accepted by the cloud chat endpoint. */
+	cloudOk: boolean
+	/** The key is accepted by the NGC API — NIM images can be pulled. */
+	ngcOk: boolean
+	checkedAt: number
+}
+
 /**
  * Argument a model command receives from the tree view (or programmatic callers).
  * The tree view hands over the VidiaItem itself, row clicks pass the model key,

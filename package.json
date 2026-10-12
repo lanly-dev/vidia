@@ -154,6 +154,12 @@
         "title": "Clear API Key",
         "category": "VIDIA",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "vidia.recheckSetup",
+        "title": "Re-check NVIDIA Setup",
+        "category": "VIDIA",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -187,6 +193,11 @@
           "command": "vidia.clearApiKey",
           "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
           "group": "navigation@5"
+        },
+        {
+          "command": "vidia.recheckSetup",
+          "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [
