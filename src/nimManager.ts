@@ -1,5 +1,8 @@
 import * as vscode from 'vscode'
 import * as cp from 'child_process'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
 import type { ManagedModel, ModelArgument, SetupState } from './types'
 import { refreshEvents } from './events'
 
@@ -161,17 +164,56 @@ export class NimManager implements vscode.Disposable {
       this.log(`Using remote NIM host ${remoteHost} for ${model.modelId}; skipping local container launch.`)
       return
     }
-    const args = [
-      'run', '-d', '--rm', '--name', name,
-      '--gpus', 'all',
-      '-p', `${port}:8000`,
-      '-e', `NGC_API_KEY=${key}`,
-      '-e', `NVIDIA_API_KEY=${key}`,
-      model.nimImage ?? `nvcr.io/nim/${model.modelId}:latest`
-    ]
-    this.log(`[NIM] ${rt} ${args.join(' ')}`)
-    await this.exec(`${rt} ${args.map(a => `"${a}"`).join(' ')}`, 60_000)
+    const image = model.nimImage ?? `nvcr.io/nim/${model.modelId}:latest`
+    // Pulling needs registry auth: log in to nvcr.io with the stored key.
+    // The key travels via stdin so it never appears in the process list.
+    await this.registryLogin(rt, key)
+    // Pass secrets via an env file (0600, deleted afterwards) instead of
+    // `-e KEY=…` on the command line, where `ps` and the output log expose them.
+    const envFile = path.join(os.tmpdir(), `${name}.env`)
+    await fs.promises.writeFile(envFile, `NGC_API_KEY=${key}\nNVIDIA_API_KEY=${key}\n`, { mode: 0o600 })
+    try {
+      const args = [
+        'run', '-d', '--rm', '--name', name,
+        '--gpus', 'all',
+        '-p', `${port}:8000`,
+        '--env-file', envFile,
+        image
+      ]
+      this.log(`[NIM] ${rt} ${args.join(' ')}`)
+      // Generous timeout: the first pull of a NIM image can take a long while.
+      await this.exec(`${rt} ${args.map(a => `"${a}"`).join(' ')}`, 30 * 60_000)
+    } finally {
+      await fs.promises.rm(envFile, { force: true })
+    }
     await this.waitForHealthy(port, token)
+  }
+
+  /**
+   * Authenticates the container runtime against nvcr.io with the stored
+   * NVIDIA key. Aborts the run with a clear message when the login itself
+   * fails, instead of letting `docker pull` die cryptically.
+   */
+  private async registryLogin(rt: string, key: string): Promise<void> {
+    // The $oauthtoken username must reach the shell literally: wrapped in
+    // double quotes under cmd.exe, in single quotes on POSIX.
+    const q = process.platform === 'win32' ? String.fromCharCode(34) : String.fromCharCode(39)
+    const user = `${q}$oauthtoken${q}`
+    this.log('[NIM] logging in to nvcr.io as $oauthtoken…')
+    await new Promise<void>((resolve, reject) => {
+      const child = cp.exec(`${rt} login nvcr.io -u ${user} --password-stdin`,
+        { windowsHide: true, timeout: 30_000 },
+        (err, _stdout, stderr) => {
+          if (err) {
+            reject(new Error(`nvcr.io login failed (${stderr?.trim() || err.message}). ` +
+              'Check that the key has NGC pull access (VIDIA: Re-check NVIDIA Setup).'))
+            return
+          }
+          resolve()
+        })
+      child.stdin?.write(key)
+      child.stdin?.end()
+    })
   }
 
   /** Polls /v1/models until the NIM server answers (weights load can take minutes). */
