@@ -155,7 +155,7 @@
       },
       {
         "command": "vidia.recheckNimSetup",
-        "title": "Re-check NIM Setup",
+        "title": "Verify NIM Setup",
         "category": "VIDIA",
         "icon": "$(refresh)"
       },
@@ -184,14 +184,9 @@
           "group": "navigation@3"
         },
         {
-          "command": "vidia.recheckNimSetup",
-          "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
-          "group": "navigation@4"
-        }
-        {
           "command": "vidia.openSettings",
           "when": "view == vidia.modelsExplorer",
-          "group": "navigation@5"
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -204,6 +199,11 @@
           "command": "vidia.ncp.addNim",
           "when": "view == vidia.modelsExplorer && viewItem == group:nim",
           "group": "inline@1"
+        },
+        {
+          "command": "vidia.recheckNimSetup",
+          "when": "view == vidia.modelsExplorer && viewItem == group:nim && vidia:setupKeyExists == true",
+          "group": "inline@2"
         },
         {
           "command": "vidia.openBuildNvidia",

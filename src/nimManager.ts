@@ -158,7 +158,7 @@ export class NimManager implements vscode.Disposable {
     if (!remoteHost && this.getSetupState()?.ngcOk === false) {
       throw new Error(
         'This NVIDIA API key is not NGC-enabled, so NIM images cannot be pulled from nvcr.io. ' +
-        'Use a key from an NGC-linked account, or run VIDIA: Re-check NIM Setup after fixing the key.')
+        'Use a key from an NGC-linked account, or run VIDIA: Verify NIM Setup after fixing the key.')
     }
     const rt = await this.assertPrerequisites()
     await this.stop(model, true)
@@ -212,7 +212,7 @@ export class NimManager implements vscode.Disposable {
         (err, _stdout, stderr) => {
           if (err) {
             reject(new Error(`nvcr.io login failed (${stderr?.trim() || err.message}). ` +
-              'Check that the key has NGC pull access (VIDIA: Re-check NIM Setup).'))
+              'Check that the key has NGC pull access (VIDIA: Verify NIM Setup).'))
             return
           }
           resolve()

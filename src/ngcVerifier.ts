@@ -14,7 +14,7 @@ import { NvidiaApiError } from './nvidiaErrors'
  * NOTE: the exact NGC endpoint contract comes from NVIDIA's NGC API docs
  * rather than a live probe here — if NVIDIA ever moves it, this check degrades
  * to "not enabled" (never to a false positive) and the user can re-run it
- * from VIDIA: Re-check NIM Setup.
+ * from VIDIA: Verify NIM Setup.
  */
 const NGC_API_BASE = 'https://api.ngc.nvidia.com/v2'
 

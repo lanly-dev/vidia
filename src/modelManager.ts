@@ -287,8 +287,8 @@ export class ModelManager implements vscode.Disposable {
     if (this.getSetupState()?.ngcOk !== false) return true
     const choice = await vscode.window.showErrorMessage(
       'This NVIDIA API key is not NGC-enabled, so NIM images cannot be pulled from nvcr.io.',
-      'Re-check NIM Setup', 'Get an NGC API Key')
-    if (choice === 'Re-check NIM Setup') await vscode.commands.executeCommand('vidia.recheckNimSetup')
+      'Verify NIM Setup', 'Get an NGC API Key')
+    if (choice === 'Verify NIM Setup') await vscode.commands.executeCommand('vidia.recheckNimSetup')
     else if (choice === 'Get an NGC API Key')
       void vscode.env.openExternal(vscode.Uri.parse('https://build.nvidia.com/explore/discover'))
     return false

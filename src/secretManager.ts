@@ -207,7 +207,7 @@ export class SecretManager {
 
   /**
    * Re-runs the full setup check for the currently stored key
-   * (VIDIA: Re-check NIM Setup). Re-verifies cloud access and NGC pull
+   * (VIDIA: Verify NIM Setup). Re-verifies cloud access and NGC pull
    * access, persists the result, and reports it.
    */
   async recheckSetup(): Promise<void> {
