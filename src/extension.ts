@@ -23,12 +23,12 @@ export async function activate(context: ExtensionContext) {
   // the same pattern used in vscode-lemon (modelDecorations.ts).
   const dDecorations = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
-  const d1 = rc('vidia.internal.addFep', (sourceArg?: string) => server.addFep(sourceArg))
+  const d1 = rc('vidia.ncp.addFep', (sourceArg?: string) => server.addFep(sourceArg))
   // Tree commands receive the VidiaItem itself (context menu) or the model key
   // (row click); the argument is forwarded as-is and resolved by ModelManager.
   const d2 = rc('vidia.ncp.removeModelItem', (arg?: ModelArgument) => server.removeModel(arg))
   const d3 = rc('vidia.ncp.setChatModelItem', (arg?: ModelArgument) => server.pickChatModel(arg))
-  const d4 = rc('vidia.ncp.testModelItem', (arg?: ModelArgument) => server.testModel(arg))
+  const d4 = rc('vidia.ncp.verifyModelItem', (arg?: ModelArgument) => server.testModel(arg))
   const d5 = rc('vidia.ncp.startNimItem', (arg?: ModelArgument) => server.startNim(arg))
   const d6 = rc('vidia.ncp.stopNimItem', (arg?: ModelArgument) => server.stopNim(arg))
   const d7 = rc('vidia.ncp.showNimLogsItem', (arg?: ModelArgument) => server.showNimLogs(arg))
@@ -36,7 +36,7 @@ export async function activate(context: ExtensionContext) {
   const d8 = rc('vidia.setNvidiaApiKey', () => server.setNvidiaApiKey())
   const d9 = rc('vidia.openBuildNvidia', () => server.openBuildNvidia())
   const d10 = rc('vidia.openSettings', () => server.openSettings())
-  const d11 = rc('vidia.refreshServerStatus', () => p.refreshStatus())
+  const d11 = rc('vidia.refreshStatus', () => p.refreshStatus())
   const d12 = rc('vidia.changeNvidiaApiKey', () => server.changeNvidiaApiKey())
   const d13 = rc('vidia.ncp.addNim', () => server.addNim())
   const d14 = rc('vidia.clearApiKey', () => server.clearApiKey())

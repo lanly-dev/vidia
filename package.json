@@ -70,8 +70,8 @@
     ],
     "commands": [
       {
-        "command": "vidia.internal.addFep",
-        "title": "Add Model",
+        "command": "vidia.ncp.addFep",
+        "title": "Add Free Endpoint",
         "category": "VIDIA",
         "icon": "$(add)"
       },
@@ -82,8 +82,8 @@
         "icon": "$(add)"
       },
       {
-        "command": "vidia.refreshServerStatus",
-        "title": "Refresh Models",
+        "command": "vidia.refreshStatus",
+        "title": "Refresh Status",
         "category": "VIDIA",
         "icon": "$(refresh)"
       },
@@ -99,10 +99,9 @@
         "category": "VIDIA"
       },
       {
-        "command": "vidia.ncp.testModelItem",
-        "title": "Test Model",
-        "category": "VIDIA",
-        "icon": "$(zap)"
+        "command": "vidia.ncp.verifyModelItem",
+        "title": "Verify Model",
+        "category": "VIDIA"
       },
       {
         "command": "vidia.ncp.startNimItem",
@@ -150,8 +149,8 @@
         "icon": "$(clear-all)"
       },
       {
-        "command": "vidia.recheckSetup",
-        "title": "Re-check NVIDIA Setup",
+        "command": "vidia.recheckNimSetup",
+        "title": "Re-check NIM Setup",
         "category": "VIDIA",
         "icon": "$(refresh)"
       },
@@ -165,12 +164,12 @@
     "menus": {
       "view/title": [
         {
-          "command": "vidia.internal.addFep",
+          "command": "vidia.ncp.addFep",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@1"
         },
         {
-          "command": "vidia.refreshServerStatus",
+          "command": "vidia.refreshStatus",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@2"
         },
@@ -213,13 +212,13 @@
           "group": "1_mod@1"
         },
         {
-          "command": "vidia.ncp.testModelItem",
+          "command": "vidia.ncp.verifyModelItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:.*:untested$/",
           "group": "inline@1",
           "icon": "$(beaker)"
         },
         {
-          "command": "vidia.ncp.testModelItem",
+          "command": "vidia.ncp.verifyModelItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:/",
           "group": "1_mod@2"
         },
@@ -266,7 +265,7 @@
           "when": "false"
         },
         {
-          "command": "vidia.ncp.testModelItem",
+          "command": "vidia.ncp.verifyModelItem",
           "when": "false"
         },
         {
