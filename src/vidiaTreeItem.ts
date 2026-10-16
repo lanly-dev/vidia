@@ -74,7 +74,7 @@ export class VidiaItem {
         item.iconPath = new vscode.ThemeIcon('warning',
           new vscode.ThemeColor('problemsWarningIcon.foreground'))
         item.tooltip = 'This NVIDIA API key is not NGC-enabled, so NIM images cannot be pulled ' +
-          'from nvcr.io.\nUse a key from an NGC-linked account, or run "VIDIA: Re-check NVIDIA Setup".'
+          'from nvcr.io.\nUse a key from an NGC-linked account, or run "VIDIA: Re-check NIM Setup".'
         item.description = 'NGC not enabled'
         return item
       }
@@ -82,7 +82,7 @@ export class VidiaItem {
         item.iconPath = new vscode.ThemeIcon('warning',
           new vscode.ThemeColor('problemsWarningIcon.foreground'))
         item.tooltip = 'The stored key was never verified against the cloud endpoint ' +
-          '(it was saved without checking).\nRun "VIDIA: Re-check NVIDIA Setup" to verify it.'
+          '(it was saved without checking).\nRun "VIDIA: Re-check NIM Setup" to verify it.'
         item.description = 'unverified key'
         return item
       }

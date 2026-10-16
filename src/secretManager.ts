@@ -29,9 +29,9 @@ export class SecretManager {
   }
 
   async setNvidiaKey(): Promise<void> {
+    // saveKey() syncs the context key and refreshes the tree on success;
+    // nothing changed on cancel/reject, so there is nothing to sync here.
     await this.store(NVIDIA_KEY, 'Set NVIDIA API Key', 'https://build.nvidia.com/explore/discover')
-    await this.syncKeyExistsContext()
-    refreshEvents.fire()
   }
 
   private async store(name: string, prompt: string, link: string): Promise<void> {
@@ -77,22 +77,18 @@ export class SecretManager {
 
     // If a key string was pasted/typed directly into the quickpick
     if (typeof selectedOrKey === 'string') {
-      if (await this.saveKey(name, selectedOrKey, prompt, link)) return
+      if (await this.saveKey(name, selectedOrKey, prompt)) return
       // Rejected — offer the input again instead of stranding the user.
       return this.store(name, prompt, link)
     }
 
     if (selectedOrKey.test) {
-      if (!key) {
-        vscode.window.showWarningMessage(
-          'No key is stored yet — paste one or sign in to generate one instead.',
-          { modal: false })
-        return
-      }
+      // The "Test current key" item is only listed when a key is stored.
+      const currentKey = key!
       try {
         const models = await vscode.window.withProgress(
           { location: vscode.ProgressLocation.Notification, title: 'Testing NVIDIA API key…' },
-          () => this.testKey(key))
+          () => this.testKey(currentKey))
         vscode.window.showInformationMessage(
           `Key is valid — ${models.length} model(s) available on the cloud endpoint.`,
           { modal: false })
@@ -114,12 +110,12 @@ export class SecretManager {
       const newKey = await vscode.window.showInputBox({
         prompt, password: true, ignoreFocusOut: true, placeHolder: 'nvapi-… key'
       })
-      if (newKey) await this.saveKey(name, newKey, prompt, link)
+      if (newKey) await this.saveKey(name, newKey, prompt)
     }
   }
 
   /** Persists a key only after the API has accepted it. Returns true when stored. */
-  private async saveKey(name: string, key: string, prompt: string, link: string): Promise<boolean> {
+  private async saveKey(name: string, key: string, prompt: string): Promise<boolean> {
     const trimmed = key.trim()
 
     // Never trust the catalog alone: /models is public and answers 200 for bogus keys.
@@ -156,7 +152,7 @@ export class SecretManager {
     await this.syncKeyExistsContext()
     // Full setup: the cloud verdict is known from the check above; now prove
     // (or disprove) NGC pull access and persist both for the tree view.
-    const ngcOk = await this.runNgcStep(trimmed, true)
+    const ngcOk = await this.runNgcStep(trimmed)
     const setup = await this.writeSetupState(!failure, ngcOk)
     refreshEvents.fire()
     vscode.window.showInformationMessage(
@@ -190,13 +186,11 @@ export class SecretManager {
     }
   }
 
-  /** Runs the NGC probe, optionally behind a progress notification. */
-  private async runNgcStep(key: string, withProgress: boolean): Promise<boolean> {
-    const run = (): Promise<boolean> => this.determineNgc(key)
-    return withProgress
-      ? vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: 'Checking NGC access…' }, run)
-      : run()
+  /** Runs the NGC probe behind a progress notification. */
+  private async runNgcStep(key: string): Promise<boolean> {
+    return vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: 'Checking NGC access…' },
+      () => this.determineNgc(key))
   }
 
   private setupSummary(setup: SetupState): string {
@@ -207,7 +201,7 @@ export class SecretManager {
 
   /**
    * Re-runs the full setup check for the currently stored key
-   * (VIDIA: Re-check NVIDIA Setup). Re-verifies cloud access and NGC pull
+   * (VIDIA: Re-check NIM Setup). Re-verifies cloud access and NGC pull
    * access, persists the result, and reports it.
    */
   async recheckSetup(): Promise<void> {
@@ -267,8 +261,6 @@ export class SecretManager {
 
   async changeNvidiaKey(): Promise<void> {
     await this.store(NVIDIA_KEY, 'Change NVIDIA API Key', 'https://build.nvidia.com/explore/discover')
-    await this.syncKeyExistsContext()
-    refreshEvents.fire()
   }
 
   /**

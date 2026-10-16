@@ -189,7 +189,7 @@
           "group": "navigation@5"
         },
         {
-          "command": "vidia.recheckSetup",
+          "command": "vidia.recheckNimSetup",
           "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
           "group": "navigation@6"
         }
