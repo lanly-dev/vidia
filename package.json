@@ -70,6 +70,12 @@
     ],
     "commands": [
       {
+        "command": "vidia.ncp.addModel",
+        "title": "Add Model",
+        "category": "VIDIA",
+        "icon": "$(add)"
+      },
+      {
         "command": "vidia.ncp.addFep",
         "title": "Add Free Endpoint",
         "category": "VIDIA",
@@ -164,7 +170,7 @@
     "menus": {
       "view/title": [
         {
-          "command": "vidia.ncp.addFep",
+          "command": "vidia.ncp.addModel",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@1"
         },
@@ -195,6 +201,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "vidia.ncp.addFep",
+          "when": "view == vidia.modelsExplorer && viewItem == group:cloud",
+          "group": "inline@1"
+        },
         {
           "command": "vidia.ncp.addNim",
           "when": "view == vidia.modelsExplorer && viewItem == group:nim",

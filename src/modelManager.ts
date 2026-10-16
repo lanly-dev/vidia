@@ -295,34 +295,10 @@ export class ModelManager implements vscode.Disposable {
   }
 
   /**
-   * User flow: pick a source (cloud/NIM). Cloud models come from the NVIDIA
-   * chat catalog; NIM containers come from the NGC catalog (containers that
-   * actually exist). The pick is added to the managed list.
+   * User flow: pick a cloud model from the NVIDIA chat catalog and add it
+   * to the managed list. (NIM containers have their own `addNimFlow`.)
    */
-  async addFepFlow(sourceArg?: ModelSource): Promise<ManagedModel | undefined> {
-    const source: ModelSource = sourceArg ?? (await vscode.window.showQuickPick(
-      (['cloud', 'nim'] as ModelSource[]).map(s => ({ label: SOURCE_LABELS[s], source: s })),
-      { placeHolder: 'Where should this model run?' }))?.source ?? 'cloud'
-
-    if (source === 'nim') {
-      if (!await this.checkNgcGate()) return undefined
-      const picked = await this.pickNimContainer()
-      if (!picked) return undefined
-      const portRaw = await vscode.window.showInputBox({
-        prompt: 'Host port for the NIM server', value: '8000', ignoreFocusOut: true
-      })
-      const port = Number(portRaw ?? 8000)
-      const addedNim = this.add({
-        modelId: picked.modelId, name: picked.name, publisher: picked.publisher,
-        source, contextLength: 131072, nimImage: picked.image, nimPort: port
-      })
-      const startNow = await vscode.window.showInformationMessage(
-        `Added ${picked.modelId} as NIM. Start the container now?`, 'Yes', 'No')
-      if (startNow === 'Yes')
-        await vscode.commands.executeCommand('vidia.ncp.startNimItem', addedNim)
-      return addedNim
-    }
-
+  async addFepFlow(): Promise<ManagedModel | undefined> {
     let catalog: CatalogModel[]
     try {
       catalog = await this.getCatalog(await this.getApiKey('cloud'))

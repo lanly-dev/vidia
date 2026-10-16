@@ -48,12 +48,33 @@ export default class Server {
     return [provider.register(), registerChatParticipant('vidia')]
   }
 
-  /** Opens the add-FEP flow; `sourceArg` preselects the group when supplied. */
-  async addFep(sourceArg?: string): Promise<void> {
-    // The command system hands over an untrusted `string`, so narrow it here
-    // rather than casting through `never` into `addFepFlow`.
-    const source = sourceArg === 'cloud' || sourceArg === 'nim' ? sourceArg : undefined
-    await this.manager.addFepFlow(source)
+  /** Inline "+" on the cloud group header: catalog pick-list, straight into that group. */
+  async addFep(): Promise<void> {
+    await this.manager.addFepFlow()
+  }
+
+  /**
+   * View-title "+" (and Command Palette "Add Model"): offers both sources,
+   * then routes to the matching single-purpose flow.
+   */
+  async addModel(): Promise<void> {
+    const pick = await window.showQuickPick(
+      [
+        {
+          label: '$(cloud) Free Endpoint',
+          description: 'Cloud model from the NVIDIA chat catalog',
+          source: 'cloud' as const
+        },
+        {
+          label: '$(vm-active) NIM Model',
+          description: 'Self-hosted container from the NGC NIM catalog',
+          source: 'nim' as const
+        }
+      ],
+      { placeHolder: 'Where should this model run?' })
+    if (!pick) return
+    if (pick.source === 'nim') await this.addNim()
+    else await this.addFep()
   }
 
   /** Inline "+" on the NIM group header: Docker/GPU preflight + catalog pick-list. */
