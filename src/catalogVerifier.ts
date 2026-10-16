@@ -133,7 +133,7 @@ export interface VerifyBatchResult {
  * Probes every model id with a tiny request, paced under the free-tier RPM
  * ceiling. Returns merged verdicts (fresh old ones kept) plus run stats.
  */
-export async function verifyCatalogModels(
+export async function probeCatalogModels(
   baseUrl: string,
   key: string,
   modelIds: string[],

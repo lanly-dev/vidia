@@ -144,12 +144,6 @@
         "icon": "$(key)"
       },
       {
-        "command": "vidia.refreshCatalog",
-        "title": "Refresh Model Catalog",
-        "category": "VIDIA",
-        "icon": "$(refresh)"
-      },
-      {
         "command": "vidia.clearApiKey",
         "title": "Clear API Key",
         "category": "VIDIA",
@@ -162,8 +156,8 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "vidia.verifyCatalog",
-        "title": "Verify Cloud Catalog",
+        "command": "vidia.probeCatalog",
+        "title": "Probe Cloud Catalog",
         "category": "VIDIA",
         "icon": "$(check)"
       }
@@ -177,11 +171,6 @@
         },
         {
           "command": "vidia.refreshServerStatus",
-          "when": "view == vidia.modelsExplorer",
-          "group": "navigation@2"
-        },
-        {
-          "command": "vidia.refreshCatalog",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@2"
         },

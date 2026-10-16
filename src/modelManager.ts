@@ -7,7 +7,7 @@ import type { NimManager } from './nimManager'
 
 import { DEFAULT_BASE_URL, NvidiaApiError, NvidiaClient } from './nvidiaClient'
 import { fetchNimCatalog, type NimContainer } from './nimCatalog'
-import { verifyCatalogModels, VERDICT_TTL_MS, type CatalogVerdicts } from './catalogVerifier'
+import { probeCatalogModels, VERDICT_TTL_MS, type CatalogVerdicts } from './catalogVerifier'
 import { refreshEvents } from './events'
 import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
 
@@ -150,8 +150,8 @@ export class ModelManager implements vscode.Disposable {
   /**
    * Returns the model catalog from the globalState cache. Fetches live only
    * when the snapshot is missing/stale (older than 5 days) or `forceRefresh`
-   * is set (VIDIA: Refresh Model Catalog). Activate-time prefetch goes
-   * through here too — Add Model never triggers a network fetch by itself.
+   * is passed. Activate-time prefetch goes through here too — Add Model never
+   * triggers a network fetch by itself.
    */
   async getCatalog(apiKey?: string, opts: { forceRefresh?: boolean } = {}): Promise<CatalogModel[]> {
     const cached = this.getCatalogCache()
@@ -215,13 +215,13 @@ export class ModelManager implements vscode.Disposable {
   }
 
   /**
-   * VIDIA: Verify Cloud Catalog — probes every catalog model with a tiny
+   * VIDIA: Probe Cloud Catalog — probes every catalog model with a tiny
    * request and caches per-model liveness verdicts (5 days). The Add Model
    * pick-list hides models with a fresh "dead" verdict. Paced at ~30 RPM so
    * the free-tier ceiling is never the thing that breaks; 401/403 aborts the
    * run, consecutive 429s stop it early, and cancelling keeps partial results.
    */
-  async verifyCatalogFlow(): Promise<void> {
+  async probeCatalogFlow(): Promise<void> {
     const key = await this.getApiKey('cloud')
     if (!key) {
       const set = await vscode.window.showWarningMessage(
@@ -246,12 +246,12 @@ export class ModelManager implements vscode.Disposable {
     const ctrl = new AbortController()
     const result = await vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
-      title: 'Verifying cloud catalog (tiny probe per model)…',
+      title: 'Probing cloud catalog (tiny probe per model)…',
       cancellable: true
     }, async (progress, token) => {
       const sub = token.onCancellationRequested(() => ctrl.abort())
       try {
-        return await verifyCatalogModels(baseUrl, key, catalog.map(m => m.id), {
+        return await probeCatalogModels(baseUrl, key, catalog.map(m => m.id), {
           signal: ctrl.signal,
           verdicts: this.getCatalogVerdicts(),
           onProgress: (done, total, dead) =>
@@ -267,12 +267,12 @@ export class ModelManager implements vscode.Disposable {
 
     if (result.abortedForAuth) {
       await vscode.window.showErrorMessage(
-        'VIDIA: catalog verification stopped — the API key was rejected (401/403).')
+        'VIDIA: catalog probing stopped — the API key was rejected (401/403).')
       return
     }
     const parts = [`${result.ok} live`, `${result.dead} dead`]
     if (result.unknown > 0) parts.push(`${result.unknown} unknown`)
-    let msg = `VIDIA: catalog verification done — ${parts.join(', ')}.`
+    let msg = `VIDIA: catalog probing done — ${parts.join(', ')}.`
     if (result.rateLimited) msg += ' Stopped early: rate limited. Re-run later to finish.'
     else if (result.cancelled) msg += ' Cancelled; partial results kept.'
     vscode.window.showInformationMessage(msg)
@@ -341,7 +341,7 @@ export class ModelManager implements vscode.Disposable {
     if (fullCatalog.length > live.length && live.length === 0) {
       vscode.window.showWarningMessage(
         'VIDIA: every catalog model has a "dead" liveness verdict — showing all of them. ' +
-        'Run "VIDIA: Verify Cloud Catalog" to re-check.')
+        'Run "VIDIA: Probe Cloud Catalog" to re-check.')
     } else
       catalog = live
 

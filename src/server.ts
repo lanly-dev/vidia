@@ -119,14 +119,9 @@ export default class Server {
     return env.openExternal(Uri.parse('https://build.nvidia.com/models'))
   }
 
-  /** Re-fetches `<baseUrl>/models` and persists it to globalState w/ timestamp. */
-  async refreshCatalog(): Promise<void> {
-    await this.manager.refreshCatalogFlow()
-  }
-
   /** Probes every catalog model and caches per-model liveness verdicts. */
-  async verifyCatalog(): Promise<void> {
-    await this.manager.verifyCatalogFlow()
+  async probeCatalog(): Promise<void> {
+    await this.manager.probeCatalogFlow()
   }
 
   openSettings(): Thenable<unknown> {
