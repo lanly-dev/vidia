@@ -156,8 +156,8 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "vidia.probeCatalog",
-        "title": "Probe Cloud Catalog",
+        "command": "vidia.probeFeCatalog",
+        "title": "Probe FE Catalog",
         "category": "VIDIA",
         "icon": "$(check)"
       }

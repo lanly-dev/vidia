@@ -41,7 +41,7 @@ export async function activate(context: ExtensionContext) {
   const d13 = rc('vidia.ncp.addNim', () => server.addNim())
   const d14 = rc('vidia.clearApiKey', () => server.clearApiKey())
   const d15 = rc('vidia.recheckSetup', () => server.recheckSetup())
-  const d16 = rc('vidia.probeCatalog', () => server.probeCatalog())
+  const d16 = rc('vidia.probeFeCatalog', () => server.probeFeCatalog())
 
   // Prefetch the model catalog in the background (skipped when the cached
   // snapshot is less than 5 days old); never blocks activation.

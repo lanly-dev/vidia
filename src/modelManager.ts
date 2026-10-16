@@ -7,7 +7,7 @@ import type { NimManager } from './nimManager'
 
 import { DEFAULT_BASE_URL, NvidiaApiError, NvidiaClient } from './nvidiaClient'
 import { fetchNimCatalog, type NimContainer } from './nimCatalog'
-import { probeCatalogModels, VERDICT_TTL_MS, type CatalogVerdicts } from './catalogVerifier'
+import { probeFeCatalogModels, VERDICT_TTL_MS, type CatalogVerdicts } from './catalogVerifier'
 import { refreshEvents } from './events'
 import { VidiaItem, SOURCE_LABELS } from './vidiaTreeItem'
 
@@ -215,13 +215,13 @@ export class ModelManager implements vscode.Disposable {
   }
 
   /**
-   * VIDIA: Probe Cloud Catalog — probes every catalog model with a tiny
+   * VIDIA: Probe FE Catalog — probes every FE catalog model with a tiny
    * request and caches per-model liveness verdicts (5 days). The Add Model
    * pick-list hides models with a fresh "dead" verdict. Paced at ~30 RPM so
    * the free-tier ceiling is never the thing that breaks; 401/403 aborts the
    * run, consecutive 429s stop it early, and cancelling keeps partial results.
    */
-  async probeCatalogFlow(): Promise<void> {
+  async probeFeCatalogFlow(): Promise<void> {
     const key = await this.getApiKey('cloud')
     if (!key) {
       const set = await vscode.window.showWarningMessage(
@@ -251,7 +251,7 @@ export class ModelManager implements vscode.Disposable {
     }, async (progress, token) => {
       const sub = token.onCancellationRequested(() => ctrl.abort())
       try {
-        return await probeCatalogModels(baseUrl, key, catalog.map(m => m.id), {
+        return await probeFeCatalogModels(baseUrl, key, catalog.map(m => m.id), {
           signal: ctrl.signal,
           verdicts: this.getCatalogVerdicts(),
           onProgress: (done, total, dead) =>
@@ -341,7 +341,7 @@ export class ModelManager implements vscode.Disposable {
     if (fullCatalog.length > live.length && live.length === 0) {
       vscode.window.showWarningMessage(
         'VIDIA: every catalog model has a "dead" liveness verdict — showing all of them. ' +
-        'Run "VIDIA: Probe Cloud Catalog" to re-check.')
+        'Run "VIDIA: Probe FE Catalog" to re-check.')
     } else
       catalog = live
 

@@ -119,9 +119,9 @@ export default class Server {
     return env.openExternal(Uri.parse('https://build.nvidia.com/models'))
   }
 
-  /** Probes every catalog model and caches per-model liveness verdicts. */
-  async probeCatalog(): Promise<void> {
-    await this.manager.probeCatalogFlow()
+  /** Probes every FE catalog model and caches per-model liveness verdicts. */
+  async probeFeCatalog(): Promise<void> {
+    await this.manager.probeFeCatalogFlow()
   }
 
   openSettings(): Thenable<unknown> {
