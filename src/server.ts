@@ -125,11 +125,6 @@ export default class Server {
     await this.secrets.recheckSetup()
   }
 
-  /** Removes the stored API key(s) after confirmation (see SecretManager). */
-  async clearApiKey(): Promise<void> {
-    await this.secrets.clearApiKey()
-  }
-
   async openBuildNvidia(): Promise<unknown> {
     return env.openExternal(Uri.parse('https://build.nvidia.com/models'))
   }

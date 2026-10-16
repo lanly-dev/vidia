@@ -40,7 +40,6 @@ export async function activate(context: ExtensionContext) {
   const d11 = rc('vidia.refreshStatus', () => p.refreshStatus())
   const d12 = rc('vidia.changeNvidiaApiKey', () => server.changeNvidiaApiKey())
   const d13 = rc('vidia.ncp.addNim', () => server.addNim())
-  const d14 = rc('vidia.clearApiKey', () => server.clearApiKey())
   const d15 = rc('vidia.recheckNimSetup', () => server.recheckSetup())
   const d16 = rc('vidia.probeFeCatalog', () => server.probeFeCatalog())
 
@@ -53,7 +52,7 @@ export async function activate(context: ExtensionContext) {
   void server.secrets.ensureSetupState()
 
   context.subscriptions.push(
-    server, p, d0, d1, d1b, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, dDecorations, ...harness)
+    server, p, d0, d1, d1b, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d15, d16, dDecorations, ...harness)
 }
 
 export function deactivate() {

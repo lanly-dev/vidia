@@ -144,15 +144,14 @@
       },
       {
         "command": "vidia.changeNvidiaApiKey",
-        "title": "Change API Key",
+        "title": "Configure API Key",
         "category": "VIDIA",
         "icon": "$(key)"
       },
       {
         "command": "vidia.clearApiKey",
         "title": "Clear API Key",
-        "category": "VIDIA",
-        "icon": "$(clear-all)"
+        "category": "VIDIA"
       },
       {
         "command": "vidia.recheckNimSetup",
@@ -180,24 +179,19 @@
           "group": "navigation@2"
         },
         {
-          "command": "vidia.openSettings",
-          "when": "view == vidia.modelsExplorer",
-          "group": "navigation@3"
-        },
-        {
           "command": "vidia.changeNvidiaApiKey",
           "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
-          "group": "navigation@4"
-        },
-        {
-          "command": "vidia.clearApiKey",
-          "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
-          "group": "navigation@5"
+          "group": "navigation@3"
         },
         {
           "command": "vidia.recheckNimSetup",
           "when": "view == vidia.modelsExplorer && vidia:setupKeyExists == true",
-          "group": "navigation@6"
+          "group": "navigation@4"
+        }
+        {
+          "command": "vidia.openSettings",
+          "when": "view == vidia.modelsExplorer",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [

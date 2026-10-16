@@ -39,11 +39,12 @@ export class SecretManager {
     // Users can paste their key directly into the input bar, test an existing key, or sign in via browser.
     const key = await this.context.secrets.get(name)
 
-    type ActionItem = vscode.QuickPickItem & { test?: boolean, portal?: boolean }
+    type ActionItem = vscode.QuickPickItem & { test?: boolean, portal?: boolean, clear?: boolean }
 
     const baseItems: ActionItem[] = [
       { label: '$(globe) Sign in & generate key in browser', portal: true },
-      ...(key ? [{ label: '$(check) Test current key', test: true }] : [])
+      ...(key ? [{ label: '$(check) Test current key', test: true }] : []),
+      ...(key ? [{ label: '$(clear-all) Clear stored key…', clear: true }] : [])
     ]
 
     const selectedOrKey = await new Promise<string | ActionItem | undefined>((resolve) => {
@@ -97,6 +98,11 @@ export class SecretManager {
           `Key check failed: ${(err as Error).message}`,
           { modal: true })
       }
+      return
+    }
+
+    if (selectedOrKey.clear) {
+      await this.clearApiKey()
       return
     }
 
@@ -260,7 +266,7 @@ export class SecretManager {
   }
 
   async changeNvidiaKey(): Promise<void> {
-    await this.store(NVIDIA_KEY, 'Change NVIDIA API Key', 'https://build.nvidia.com/explore/discover')
+    await this.store(NVIDIA_KEY, 'Configure NVIDIA API Key', 'https://build.nvidia.com/explore/discover')
   }
 
   /**
