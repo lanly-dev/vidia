@@ -5,7 +5,8 @@ import type {
 } from './types'
 import type { NimManager } from './nimManager'
 
-import { DEFAULT_BASE_URL, NvidiaApiError, NvidiaClient } from './nvidiaClient'
+import { DEFAULT_BASE_URL, NvidiaClient } from './nvidiaClient'
+import { NvidiaApiError } from './nvidiaErrors'
 import { fetchNimCatalog, type NimContainer } from './nimCatalog'
 import { probeFeCatalogModels, VERDICT_TTL_MS, type CatalogVerdicts } from './catalogVerifier'
 import { refreshEvents } from './events'

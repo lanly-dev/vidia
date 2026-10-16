@@ -131,7 +131,3 @@ export async function checkKey(baseUrl: string, key: string, onProbe?: OnProbe):
   const probes = await verifyKey(baseUrl, key, models, onProbe)
   return { models, probes }
 }
-
-// The verifier throws this type; callers need it to tell "definitively rejected" (401/403)
-// apart from "could not verify" (offline, rate limited, endpoint trouble).
-export { NvidiaApiError } from './nvidiaErrors'

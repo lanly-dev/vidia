@@ -6,7 +6,7 @@ import { NvidiaClient } from './nvidiaClient'
 import { registerChatParticipant } from './chatParticipant'
 import { SecretManager } from './secretManager'
 import { VidiaLmProvider } from './lmcProvider'
-import type { ModelArgument, Services } from './types'
+import type { ModelArgument } from './types'
 
 /** Main server class encapsulating all extension services */
 export default class Server {
@@ -42,15 +42,9 @@ export default class Server {
     this.disposable.push(this.nim)
   }
 
-  /** Read-only view of the services assembled in the constructor. */
-  private getServices(): Services {
-    return { secrets: this.secrets, client: this.client, manager: this.manager, nim: this.nim }
-  }
-
   /** Register the chat harness (provider + @vidia participant). */
   registerChatHarness(): Disposable[] {
-    const { client, manager } = this.getServices()
-    const provider = new VidiaLmProvider(manager, client, manager.onDidChange)
+    const provider = new VidiaLmProvider(this.manager, this.client, this.manager.onDidChange)
     return [provider.register(), registerChatParticipant('vidia')]
   }
 

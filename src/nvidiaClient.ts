@@ -3,11 +3,6 @@ import { NvidiaApiError, friendlyHttpError } from './nvidiaErrors'
 
 export const DEFAULT_BASE_URL = 'https://integrate.api.nvidia.com/v1'
 
-// The error helpers are pure (no `vscode`), so they live in ./nvidiaErrors where
-// `npm run key:check` can bundle them. Re-exported here for importers that
-// reach for them through the client module.
-export { NvidiaApiError, friendlyHttpError } from './nvidiaErrors'
-
 export class NvidiaClient {
   constructor(
     private readonly getApiKey: () => string | undefined | Thenable<string | undefined>,

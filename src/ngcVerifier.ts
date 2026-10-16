@@ -31,7 +31,3 @@ export async function checkNgc(key: string): Promise<{ ngc: boolean }> {
   throw new NvidiaApiError(res.status,
     `NGC check inconclusive — api.ngc.nvidia.com answered ${res.status}.`)
 }
-
-// The verifier throws this type; callers need it to tell "definitively not
-// NGC-enabled" (401/403) apart from "could not check" (network trouble, …).
-export { NvidiaApiError } from './nvidiaErrors'

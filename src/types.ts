@@ -1,24 +1,12 @@
-import type { ModelManager } from './modelManager'
-import type { NimManager } from './nimManager'
-import type { NvidiaClient } from './nvidiaClient'
-import type { SecretManager } from './secretManager'
-import type { VidiaItem } from './vidiaTreeItem'
 import type { NimContainer } from './nimCatalog'
+import type { VidiaItem } from './vidiaTreeItem'
 
 export type ModelSource = 'cloud' | 'nim'
-
-/** Services assembled once at activation and handed out through `Server`. */
-export interface Services {
-	secrets: SecretManager
-	client: NvidiaClient
-	manager: ModelManager
-	nim: NimManager
-}
 
 /** Health state of a managed model, derived from probing the endpoint. */
 export type ModelStatus = 'untested' | 'active' | 'disabled'
 
-/** One probe record per managed model; overwritten on every test. */
+/** One probe record per managed model; overwritten on every verification. */
 export interface ModelProbe {
 	testedAt: number
 	/** Model's reply text on success, error message on failure. */

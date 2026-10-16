@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 import { refreshEvents } from './events'
-import { DEFAULT_BASE_URL, NvidiaApiError } from './nvidiaClient'
+import { DEFAULT_BASE_URL } from './nvidiaClient'
+import { NvidiaApiError } from './nvidiaErrors'
 import { checkKey } from './keyVerifier'
 import { checkNgc } from './ngcVerifier'
 import type { SetupState } from './types'
