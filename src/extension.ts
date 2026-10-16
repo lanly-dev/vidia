@@ -40,7 +40,7 @@ export async function activate(context: ExtensionContext) {
   const d12 = rc('vidia.changeNvidiaApiKey', () => server.changeNvidiaApiKey())
   const d13 = rc('vidia.ncp.addNim', () => server.addNim())
   const d14 = rc('vidia.clearApiKey', () => server.clearApiKey())
-  const d15 = rc('vidia.recheckSetup', () => server.recheckSetup())
+  const d15 = rc('vidia.recheckNimSetup', () => server.recheckSetup())
   const d16 = rc('vidia.probeFeCatalog', () => server.probeFeCatalog())
 
   // Prefetch the model catalog in the background (skipped when the cached

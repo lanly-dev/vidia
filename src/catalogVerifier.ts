@@ -5,7 +5,7 @@
  * retired entries and models the caller's key is not entitled to — both feel
  * exactly like "this model doesn't exist" when picked. This module probes
  * every catalog id with the same tiny chat request the key check uses and
- * records a per-model verdict, so the Add Model pick-list can hide the dead.
+ * records a per-model verdict, so the Add Free Endpoint pick-list can hide the dead.
  *
  * Like ./keyVerifier and ./ngcVerifier, this module has no `vscode`
  * dependency on purpose.

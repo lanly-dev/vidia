@@ -6,6 +6,18 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- Fixed `VIDIA: Re-check NIM Setup` doing nothing from the palette — the rename
+  left `extension.ts` registering the old `vidia.recheckSetup` id and the
+  view/title menu pointing at it. Aligned all registrations, menu entries,
+  and user-facing strings with the new id/title.
+- Removed dead code in `SecretManager`: unreachable `if (!key)` guard, the
+  never-used `withProgress: false` path of `runNgcStep`, the unused `link`
+  parameter of `saveKey`, and duplicated context-sync/tree-refresh calls in
+  `setNvidiaKey`/`changeNvidiaKey` (already done by `saveKey` on success).
+- `NimManager` now uses the detected container runtime (docker/podman) for
+  `isRunning`/`stop`/`logs` instead of hardcoded `docker`; `run()` resolves
+  with the server URL (fixes `http://localhost:undefined/v1` when no port was
+  set, and the wrong localhost URL for remote hosts); `waitForHealthy` is private.
 - NIM add flows now list real containers from the public NGC catalog instead of
   guessing `nvcr.io/nim/<model-id>:latest` from the chat catalog (many guesses,
   e.g. `nim/01-ai/yi-large`, never existed). Entries carry their actual latest

@@ -217,7 +217,7 @@ export class ModelManager implements vscode.Disposable {
 
   /**
    * VIDIA: Probe FE Catalog — probes every FE catalog model with a tiny
-   * request and caches per-model liveness verdicts (5 days). The Add Model
+   * request and caches per-model liveness verdicts (5 days). The Add Free Endpoint
    * pick-list hides models with a fresh "dead" verdict. Paced at ~30 RPM so
    * the free-tier ceiling is never the thing that breaks; 401/403 aborts the
    * run, consecutive 429s stop it early, and cancelling keeps partial results.
@@ -247,7 +247,7 @@ export class ModelManager implements vscode.Disposable {
     const ctrl = new AbortController()
     const result = await vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
-      title: 'Probing cloud catalog (tiny probe per model)…',
+      title: 'Probing FE catalog (tiny probe per model)…',
       cancellable: true
     }, async (progress, token) => {
       const sub = token.onCancellationRequested(() => ctrl.abort())
@@ -287,8 +287,8 @@ export class ModelManager implements vscode.Disposable {
     if (this.getSetupState()?.ngcOk !== false) return true
     const choice = await vscode.window.showErrorMessage(
       'This NVIDIA API key is not NGC-enabled, so NIM images cannot be pulled from nvcr.io.',
-      'Re-check Setup', 'Get an NGC API Key')
-    if (choice === 'Re-check Setup') await vscode.commands.executeCommand('vidia.recheckSetup')
+      'Re-check NIM Setup', 'Get an NGC API Key')
+    if (choice === 'Re-check NIM Setup') await vscode.commands.executeCommand('vidia.recheckNimSetup')
     else if (choice === 'Get an NGC API Key')
       void vscode.env.openExternal(vscode.Uri.parse('https://build.nvidia.com/explore/discover'))
     return false

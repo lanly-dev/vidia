@@ -29,8 +29,7 @@ export class NimManager implements vscode.Disposable {
       },
       async (_p, token) => {
         try {
-          await this.run(m, token)
-          const url = `http://localhost:${m.nimPort}/v1`
+          const url = await this.run(m, token)
           vscode.window.showInformationMessage(`NIM server for ${m.modelId} is healthy at ${url}`)
         } catch (e) {
           vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e))
@@ -76,7 +75,7 @@ export class NimManager implements vscode.Disposable {
         'https://www.docker.com/products/docker-desktop/')
     } else if (!await this.daemonUp(rt)) {
       issues.push(`${rt === 'docker' ? 'Docker Desktop' : 'Podman'} is installed but its daemon ` +
-        `isn't running — start it, then retry. (VIDIA: Refresh Models re-checks.)`)
+        `isn't running — start it, then retry. (VIDIA: Refresh Status re-checks.)`)
     }
     if (!await this.hasNvidiaGpu())
       issues.push('No NVIDIA GPU detected — "nvidia-smi" is missing or failing; install/update the NVIDIA driver.')
@@ -139,21 +138,27 @@ export class NimManager implements vscode.Disposable {
     return `vidia-nim-${model.modelId.replace(/[^\w.-]+/g, '-')}`.slice(0, 60)
   }
 
-  isRunning(model: ManagedModel): Promise<boolean> {
+  /** Resolved container runtime for one-off commands (falls back to docker). */
+  private async runtimeCmd(): Promise<string> {
+    return (await this.detectRuntime()) ?? 'docker'
+  }
+
+  async isRunning(model: ManagedModel): Promise<boolean> {
+    const rt = await this.runtimeCmd()
     return new Promise(resolve => {
-      cp.exec(`docker ps --filter "name=^/${this.containerName(model)}$" --format "{{.ID}}"`,
+      cp.exec(`${rt} ps --filter "name=^/${this.containerName(model)}$" --format "{{.ID}}"`,
         { windowsHide: true }, (err, stdout) => resolve(!err && stdout.trim().length > 0))
     })
   }
 
-  /** Runs the NIM container for a model and resolves once the server is healthy. */
-  async run(model: ManagedModel, token?: vscode.CancellationToken): Promise<void> {
+  /** Runs the NIM container for a model; resolves with the server URL once healthy. */
+  async run(model: ManagedModel, token?: vscode.CancellationToken): Promise<string> {
     const remoteHost = vscode.workspace.getConfiguration('vidia.nim').get<string>('remoteHost', '')
     // Without NGC pull access the docker pull is doomed — fail fast with guidance.
     if (!remoteHost && this.getSetupState()?.ngcOk === false) {
       throw new Error(
         'This NVIDIA API key is not NGC-enabled, so NIM images cannot be pulled from nvcr.io. ' +
-        'Use a key from an NGC-linked account, or run VIDIA: Re-check NVIDIA Setup after fixing the key.')
+        'Use a key from an NGC-linked account, or run VIDIA: Re-check NIM Setup after fixing the key.')
     }
     const rt = await this.assertPrerequisites()
     await this.stop(model, true)
@@ -162,7 +167,7 @@ export class NimManager implements vscode.Disposable {
     const key = (await this.getNvidiaKey()) ?? ''
     if (remoteHost) {
       this.log(`Using remote NIM host ${remoteHost} for ${model.modelId}; skipping local container launch.`)
-      return
+      return `http://${remoteHost.replace(/\/+$/, '')}/v1`
     }
     const image = model.nimImage ?? `nvcr.io/nim/${model.modelId}:latest`
     // Pulling needs registry auth: log in to nvcr.io with the stored key.
@@ -187,6 +192,7 @@ export class NimManager implements vscode.Disposable {
       await fs.promises.rm(envFile, { force: true })
     }
     await this.waitForHealthy(port, token)
+    return `http://localhost:${port}/v1`
   }
 
   /**
@@ -206,7 +212,7 @@ export class NimManager implements vscode.Disposable {
         (err, _stdout, stderr) => {
           if (err) {
             reject(new Error(`nvcr.io login failed (${stderr?.trim() || err.message}). ` +
-              'Check that the key has NGC pull access (VIDIA: Re-check NVIDIA Setup).'))
+              'Check that the key has NGC pull access (VIDIA: Re-check NIM Setup).'))
             return
           }
           resolve()
@@ -217,7 +223,7 @@ export class NimManager implements vscode.Disposable {
   }
 
   /** Polls /v1/models until the NIM server answers (weights load can take minutes). */
-  async waitForHealthy(port: number, token?: vscode.CancellationToken, timeoutMs = 20 * 60_000): Promise<void> {
+  private async waitForHealthy(port: number, token?: vscode.CancellationToken, timeoutMs = 20 * 60_000): Promise<void> {
     const started = Date.now()
     while (Date.now() - started < timeoutMs) {
       if (token?.isCancellationRequested) throw new Error('Cancelled.')
@@ -233,9 +239,10 @@ export class NimManager implements vscode.Disposable {
   }
 
   async stop(model: ManagedModel, quiet = false): Promise<void> {
+    const rt = await this.runtimeCmd()
     const name = this.containerName(model)
     await new Promise<void>(resolve => {
-      cp.exec(`docker rm -f "${name}"`, { windowsHide: true }, err => {
+      cp.exec(`${rt} rm -f "${name}"`, { windowsHide: true }, err => {
         if (err && !quiet) this.log(`[NIM] stop ${name}: ${err.message}`)
         resolve()
       })
@@ -248,10 +255,11 @@ export class NimManager implements vscode.Disposable {
    * don't stack up orphaned processes.
    */
   async logs(model: ManagedModel, channel: vscode.OutputChannel): Promise<void> {
+    const rt = await this.runtimeCmd()
     const name = this.containerName(model)
     const prev = this.logStreams.get(name)
     if (prev && !prev.killed) prev.kill()
-    const child = cp.spawn('docker', ['logs', '-f', name], { windowsHide: true })
+    const child = cp.spawn(rt, ['logs', '-f', name], { windowsHide: true })
     this.logStreams.set(name, child)
     child.on('exit', () => {
       if (this.logStreams.get(name) === child) this.logStreams.delete(name)
