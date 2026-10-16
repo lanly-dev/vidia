@@ -23,7 +23,7 @@ export async function activate(context: ExtensionContext) {
   // the same pattern used in vscode-lemon (modelDecorations.ts).
   const dDecorations = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
-  const d1 = rc('vidia.internal.addModel', (sourceArg?: string) => server.addModel(sourceArg))
+  const d1 = rc('vidia.internal.addFep', (sourceArg?: string) => server.addFep(sourceArg))
   // Tree commands receive the VidiaItem itself (context menu) or the model key
   // (row click); the argument is forwarded as-is and resolved by ModelManager.
   const d2 = rc('vidia.ncp.removeModelItem', (arg?: ModelArgument) => server.removeModel(arg))
@@ -38,7 +38,7 @@ export async function activate(context: ExtensionContext) {
   const d10 = rc('vidia.openSettings', () => server.openSettings())
   const d11 = rc('vidia.refreshServerStatus', () => p.refreshStatus())
   const d12 = rc('vidia.changeNvidiaApiKey', () => server.changeNvidiaApiKey())
-  const d13 = rc('vidia.ncp.addNimModelItem', () => server.addNim())
+  const d13 = rc('vidia.ncp.addNim', () => server.addNim())
   const d14 = rc('vidia.clearApiKey', () => server.clearApiKey())
   const d15 = rc('vidia.recheckSetup', () => server.recheckSetup())
   const d16 = rc('vidia.probeCatalog', () => server.probeCatalog())

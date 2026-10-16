@@ -298,7 +298,7 @@ export class ModelManager implements vscode.Disposable {
    * chat catalog; NIM containers come from the NGC catalog (containers that
    * actually exist). The pick is added to the managed list.
    */
-  async addModelFlow(sourceArg?: ModelSource): Promise<ManagedModel | undefined> {
+  async addFepFlow(sourceArg?: ModelSource): Promise<ManagedModel | undefined> {
     const source: ModelSource = sourceArg ?? (await vscode.window.showQuickPick(
       (['cloud', 'nim'] as ModelSource[]).map(s => ({ label: SOURCE_LABELS[s], source: s })),
       { placeHolder: 'Where should this model run?' }))?.source ?? 'cloud'

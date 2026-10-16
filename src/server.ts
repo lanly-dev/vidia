@@ -54,12 +54,12 @@ export default class Server {
     return [provider.register(), registerChatParticipant('vidia')]
   }
 
-  /** Opens the add-model flow; `sourceArg` preselects the group when supplied. */
-  async addModel(sourceArg?: string): Promise<void> {
+  /** Opens the add-FEP flow; `sourceArg` preselects the group when supplied. */
+  async addFep(sourceArg?: string): Promise<void> {
     // The command system hands over an untrusted `string`, so narrow it here
-    // rather than casting through `never` into `addModelFlow`.
+    // rather than casting through `never` into `addFepFlow`.
     const source = sourceArg === 'cloud' || sourceArg === 'nim' ? sourceArg : undefined
-    await this.manager.addModelFlow(source)
+    await this.manager.addFepFlow(source)
   }
 
   /** Inline "+" on the NIM group header: Docker/GPU preflight + catalog pick-list. */

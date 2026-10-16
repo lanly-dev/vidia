@@ -1,7 +1,7 @@
 {
   "name": "vidia",
   "displayName": "VIDIA — NVIDIA NIM Models",
-  "description": "Manage NVIDIA NIM models from build.nvidia.com in a tree view: use the free cloud endpoint or self-hosted NIM containers — all integrated into the VS Code AI harness.",
+  "description": "Manage NVIDIA free cloud endpoint or self-hosted NIM containers",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.138.0"
@@ -70,13 +70,13 @@
     ],
     "commands": [
       {
-        "command": "vidia.internal.addModel",
+        "command": "vidia.internal.addFep",
         "title": "Add Model",
         "category": "VIDIA",
         "icon": "$(add)"
       },
       {
-        "command": "vidia.ncp.addNimModelItem",
+        "command": "vidia.ncp.addNim",
         "title": "Add NIM Model",
         "category": "VIDIA",
         "icon": "$(add)"
@@ -165,7 +165,7 @@
     "menus": {
       "view/title": [
         {
-          "command": "vidia.internal.addModel",
+          "command": "vidia.internal.addFep",
           "when": "view == vidia.modelsExplorer",
           "group": "navigation@1"
         },
@@ -197,7 +197,7 @@
       ],
       "view/item/context": [
         {
-          "command": "vidia.ncp.addNimModelItem",
+          "command": "vidia.ncp.addNim",
           "when": "view == vidia.modelsExplorer && viewItem == group:nim",
           "group": "inline@1"
         },
@@ -270,7 +270,7 @@
           "when": "false"
         },
         {
-          "command": "vidia.ncp.addNimModelItem",
+          "command": "vidia.ncp.addNim",
           "when": "false"
         }
       ]
