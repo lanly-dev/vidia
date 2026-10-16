@@ -222,15 +222,34 @@ export class NimManager implements vscode.Disposable {
     })
   }
 
-  /** Polls /v1/models until the NIM server answers (weights load can take minutes). */
+  /**
+   * Polls the NIM server until it answers (weights load can take minutes).
+   *
+   * A container can be `docker ps`-running long before its HTTP server binds the
+   * published port, so this loops on the endpoint. Two traps make the naive probe
+   * spin forever even when the container is up, so we guard against both:
+   *
+   * 1. `localhost` can resolve to IPv6 `::1` first, while `docker run -p` publishes
+   *    only on IPv4 `0.0.0.0` — the connect is refused and the loop never exits.
+   *    Probe `127.0.0.1` directly to skip the ambiguity.
+   * 2. NIMs started with an API key enforce bearer auth, so an unauthenticated
+   *    `/v1/models` answers 401 forever. Send the stored key.
+   *
+   * Any HTTP response (even a non-2xx) proves the port is serving, so we stop
+   * polling; only connection failures keep us waiting.
+   */
   private async waitForHealthy(port: number, token?: vscode.CancellationToken, timeoutMs = 20 * 60_000): Promise<void> {
     const started = Date.now()
+    const key = (await this.getNvidiaKey()) ?? ''
     while (Date.now() - started < timeoutMs) {
       if (token?.isCancellationRequested) throw new Error('Cancelled.')
       try {
-        const res = await fetch(`http://localhost:${port}/v1/models`)
-        if (res.ok) return
-      } catch { /* not up yet */ }
+        const res = await fetch(`http://127.0.0.1:${port}/v1/models`, {
+          headers: key ? { Authorization: `Bearer ${key}` } : {}
+        })
+        if (!res.ok) this.log(`[NIM] health probe on port ${port} answered ${res.status}; server is up.`)
+        return
+      } catch { /* not bound yet — keep polling */ }
       await new Promise(r => setTimeout(r, 3_000))
     }
     throw new Error(
