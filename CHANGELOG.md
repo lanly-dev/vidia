@@ -6,6 +6,13 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [Unreleased]
 
+- Added `AGENTS.md`: the project's compounding instructions (Plan → Work →
+  Assess → Compound) — push workflow, command-wiring discipline, code
+  conventions, and the incident-derived rules so future work starts smarter.
+- Removed the dead `VIDIA: Clear API Key` palette entry — clearing now lives
+  inside the Configure API Key quickpick, but its `package.json` declaration
+  survived the refactor with no handler behind it.
+
 - Fixed `VIDIA: Re-check NIM Setup` doing nothing from the palette — the rename
   left `extension.ts` registering the old `vidia.recheckSetup` id and the
   view/title menu pointing at it. Aligned all registrations, menu entries,

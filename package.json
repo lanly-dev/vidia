@@ -149,11 +149,6 @@
         "icon": "$(key)"
       },
       {
-        "command": "vidia.clearApiKey",
-        "title": "Clear API Key",
-        "category": "VIDIA"
-      },
-      {
         "command": "vidia.recheckNimSetup",
         "title": "Verify NIM Setup",
         "category": "VIDIA",
