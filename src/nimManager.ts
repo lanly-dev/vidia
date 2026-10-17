@@ -150,14 +150,6 @@ export class NimManager implements vscode.Disposable {
     return (await this.detectRuntime()) ?? 'docker'
   }
 
-  async isRunning(model: ManagedModel): Promise<boolean> {
-    const rt = await this.runtimeCmd()
-    return new Promise(resolve => {
-      cp.exec(`${rt} ps --filter "name=^/${this.containerName(model)}$" --format "{{.ID}}"`,
-        { windowsHide: true }, (err, stdout) => resolve(!err && stdout.trim().length > 0))
-    })
-  }
-
   /**
    * Resolves the lifecycle state of a model's NIM container, so the UI can show
    * something more honest than a boolean "running":
@@ -251,8 +243,11 @@ export class NimManager implements vscode.Disposable {
    * declined or the start failed (an error message has already been shown).
    */
   async ensureReadyForChat(model: ManagedModel): Promise<boolean> {
-    if (await this.isReady(model)) return true
     const state = await this.getContainerState(model)
+    // Remote NIM host: there is no local container to manage, so there is
+    // nothing to start — reachability is the request's problem, as before.
+    if (state === undefined) return true
+    if (state === 'ready') return true
     const mode = vscode.workspace.getConfiguration('vidia.nim').get<string>('autoStartOnChat', 'prompt')
     const label = state === 'not-pulled' ? 'Its image has not been downloaded yet.'
       : state === 'starting' ? 'It is still starting up.'
