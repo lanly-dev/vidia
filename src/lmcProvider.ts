@@ -2,11 +2,13 @@ import * as vscode from 'vscode'
 import type { ChatMessage, ManagedModel } from './types'
 import type { ModelManager } from './modelManager'
 import type { NvidiaClient } from './nvidiaClient'
+import type { NimManager } from './nimManager'
 
 export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
   readonly onDidChangeLanguageModelChatInformation: vscode.Event<void>
 
   constructor(private readonly manager: ModelManager, private readonly client: NvidiaClient,
+    private readonly nim: NimManager,
     changeSignal: vscode.Event<void>) {
     this.onDidChangeLanguageModelChatInformation = changeSignal
   }
@@ -50,6 +52,10 @@ export class VidiaLmProvider implements vscode.LanguageModelChatProvider {
     const managed = this.manager.get(model.id)
     if (!managed)
       throw new Error(`Model "${model.id}" is no longer managed by VIDIA. Re-add it in the Models Explorer.`)
+    // Auto-start (or prompt) a NIM container that isn't ready yet, so chatting
+    // with a stopped model "just works" instead of failing with ECONNREFUSED.
+    if (managed.source === 'nim' && !await this.nim.ensureReadyForChat(managed))
+      throw new Error(`${managed.modelId} is not ready. Start its container in the Models Explorer, then retry.`)
     const target = await this.manager.resolveTarget(managed)
     const chatMessages: ChatMessage[] = messages.map(msg => {
       const roleNum = msg.role as unknown as number

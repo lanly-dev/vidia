@@ -82,7 +82,10 @@ export class ModelManager implements vscode.Disposable {
     if (model.source === 'nim') {
       const remoteHost = nimCfg.get<string>('remoteHost', '')
       const port = model.nimPort ?? nimCfg.get<number>('defaultPort', 8000)
-      const base = remoteHost ? `http://${remoteHost.replace(/\/+$/, '')}/v1` : `http://localhost:${port}/v1`
+      // `127.0.0.1`, not `localhost`: Docker publishes the port on IPv4 only, and
+      // on Windows `localhost` can resolve to IPv6 ::1 first — the connection is
+      // refused and chat fails even though the container is healthy.
+      const base = remoteHost ? `http://${remoteHost.replace(/\/+$/, '')}/v1` : `http://127.0.0.1:${port}/v1`
       return { baseUrl: base, apiKey: await this.getApiKey('nim'), model: model.modelId }
     }
     // Only `cloud` and `nim` remain; anything else left with the local runtime source.

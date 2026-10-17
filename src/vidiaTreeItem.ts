@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
 
-import type { ManagedModel, ModelProbe, ModelStatus, ModelSource } from './types'
+import type { ManagedModel, ModelProbe, ModelStatus, ModelSource, NimContainerState } from './types'
+import { NIM_STATE_HINTS, NIM_STATE_LABELS } from './types'
 import { ModelDecorationProvider } from './modelDecorations'
 
 /** Human-readable group labels, kept here (leaf module) to avoid import cycles. */
@@ -26,8 +27,8 @@ export class VidiaItem {
   readonly collapsible: vscode.TreeItemCollapsibleState
   readonly model?: ManagedModel
   readonly source?: ModelSource
-  /** Transient UI state (NIM container running); never persisted. */
-  readonly running?: boolean
+  /** Transient UI state of the NIM container; never persisted. */
+  readonly nimState?: NimContainerState
   /** Latest probe result for the model, if the user ever tested it. */
   readonly probe?: ModelProbe
   /** Prerequisite failures for group rows (e.g. missing Docker / NVIDIA GPU). */
@@ -43,7 +44,7 @@ export class VidiaItem {
     opts?: {
       model?: ManagedModel
       source?: ModelSource
-      running?: boolean
+      nimState?: NimContainerState
       probe?: ModelProbe
       envIssues?: string[]
       cloudOk?: boolean
@@ -55,7 +56,7 @@ export class VidiaItem {
     this.collapsible = collapsible
     this.model = opts?.model
     this.source = opts?.source
-    this.running = opts?.running
+    this.nimState = opts?.nimState
     this.probe = opts?.probe
     this.envIssues = opts?.envIssues
     this.cloudOk = opts?.cloudOk
@@ -111,22 +112,48 @@ export class VidiaItem {
     const status: ModelStatus = this.probe?.status ?? 'untested'
     const isActive = selectedModelKey === m.key
     const isDisabled = status === 'disabled'
+    const state = m.source === 'nim' ? this.nimState : undefined
     item.id = m.key
-    item.resourceUri = ModelDecorationProvider.uriFor(m.modelId, isActive, isDisabled)
+    // "Ready to chat" = active + (cloud or nim-ready). Otherwise the row is
+    // active-but-not-ready and gets the orange tint, so green always means
+    // "will work right now".
+    const notReady = m.source === 'nim' && state !== undefined && state !== 'ready'
+    item.resourceUri = ModelDecorationProvider.uriFor(m.modelId, isActive, isDisabled, isActive && notReady)
     const statusSuffix = isDisabled ? ' · disabled' : ''
-    item.description = `${m.publisher} · ${m.source}${this.running ? ' · running' : ''}${statusSuffix}`
-    item.tooltip = `${m.modelId} (${SOURCE_LABELS[m.source]})${this.running ? ' - running' : ''}` +
+    const stateSuffix = state ? ` · ${NIM_STATE_LABELS[state]}` : ''
+    item.description = `${m.publisher} · ${m.source}${stateSuffix}${statusSuffix}`
+    const stateLine = state ? `\nContainer: ${NIM_STATE_LABELS[state]} — ${NIM_STATE_HINTS[state]}` : ''
+    item.tooltip = `${m.modelId} (${SOURCE_LABELS[m.source]})${stateLine}` +
       (this.probe
         ? `\n[${status}] ${new Date(this.probe.testedAt).toLocaleString()}: ${(this.probe.reply || '').slice(0, 300)}`
         : '\n[untested] Use the inline test button to probe this model.')
-    // Untested rows carry the inline Test button; active/disabled rows hide it.
-    item.contextValue = `model:${m.source}:${m.modelId}:${status}`
-    // No status icons: active/untested rows use the source icon; disabled
-    // rows are greyed out via FileDecoration and show a warning glyph.
-    item.iconPath = isDisabled
-      ? new vscode.ThemeIcon('warning', new vscode.ThemeColor('disabledForeground'))
-      : new vscode.ThemeIcon(m.source === 'cloud' ? 'cloud' : 'server-process')
+    // Context value carries source + container state so package.json menus can
+    // target precisely (e.g. only show Stop for a ready container).
+    item.contextValue = `model:${m.source}${state ? `:${state}` : ''}:${status}`
+    // Icon reflects container state (NIM) or validity (probe), never both.
+    item.iconPath = this.pickIcon(m, state, isDisabled)
     item.command = { command: setChatCommand, title: 'Use for Chat', arguments: [m.key] }
     return item
+  }
+
+  /** Icon reflects container state (NIM) or probe validity, never both. */
+  private pickIcon(m: ManagedModel, state: NimContainerState | undefined, isDisabled: boolean): vscode.ThemeIcon {
+    // A disabled model is unusable regardless of container state — say so first.
+    if (isDisabled) return new vscode.ThemeIcon('warning', new vscode.ThemeColor('disabledForeground'))
+    if (m.source !== 'nim') return new vscode.ThemeIcon('cloud')
+    switch (state) {
+      case 'ready':
+        return new vscode.ThemeIcon('server-process')
+      case 'starting':
+        return new vscode.ThemeIcon('loading~spin')
+      case 'exited':
+        return new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.orange'))
+      case 'not-pulled':
+        return new vscode.ThemeIcon('cloud-download', new vscode.ThemeColor('charts.orange'))
+      case 'stopped':
+        return new vscode.ThemeIcon('debug-stop', new vscode.ThemeColor('disabledForeground'))
+      default:
+        return new vscode.ThemeIcon('server')
+    }
   }
 }

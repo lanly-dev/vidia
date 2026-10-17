@@ -3,7 +3,7 @@ import * as cp from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import type { ManagedModel, ModelArgument, SetupState } from './types'
+import type { ManagedModel, ModelArgument, NimContainerState, SetupState } from './types'
 import { refreshEvents } from './events'
 
 export class NimManager implements vscode.Disposable {
@@ -16,6 +16,11 @@ export class NimManager implements vscode.Disposable {
 
   /** `docker logs -f` children spawned by showLogs(), keyed by container name. */
   private readonly logStreams = new Map<string, cp.ChildProcess>()
+
+  /** Short-lived cache of container states so tree refreshes don't spam docker. */
+  private readonly stateCache = new Map<string, { state: NimContainerState, at: number }>()
+  /** How long a probed container state stays valid (ms). */
+  private static readonly STATE_TTL_MS = 4_000
 
   /** User flow: start the container for the selected NIM model with progress UI. */
   async startWithProgress(arg?: ModelArgument): Promise<void> {
@@ -35,6 +40,7 @@ export class NimManager implements vscode.Disposable {
           vscode.window.showErrorMessage(e instanceof Error ? e.message : String(e))
         }
       })
+    this.invalidateState(m)
     refreshEvents.fire()
   }
 
@@ -43,6 +49,7 @@ export class NimManager implements vscode.Disposable {
     const m = this.resolveModel(arg)
     if (!m) return
     await this.stop(m)
+    this.invalidateState(m)
     refreshEvents.fire()
     vscode.window.showInformationMessage(`NIM container for ${m.modelId} stopped.`)
   }
@@ -151,6 +158,126 @@ export class NimManager implements vscode.Disposable {
     })
   }
 
+  /**
+   * Resolves the lifecycle state of a model's NIM container, so the UI can show
+   * something more honest than a boolean "running":
+   *
+   *   not-pulled → the image has never been downloaded (first start is slow).
+   *   stopped    → image present, container not running (fast start).
+   *   starting   → container `docker ps`-running but the HTTP server isn't up yet.
+   *   ready      → server answers on the published port (chat will work).
+   *   exited     → container exists but has exited (crash / manual stop).
+   *
+   * Cached briefly (STATE_TTL_MS) so periodic tree refreshes don't spawn a
+   * `docker ps` per row per keystroke. A running container is confirmed with a
+   * single short-timeout ping to `127.0.0.1` (never `localhost` — see the
+   * IPv6 note in waitForHealthy).
+   */
+  async getContainerState(model: ManagedModel): Promise<NimContainerState | undefined> {
+    // Remote NIM host: there is no local container to inspect.
+    if (vscode.workspace.getConfiguration('vidia.nim').get<string>('remoteHost', '')) return undefined
+
+    const cached = this.stateCache.get(model.key)
+    if (cached && Date.now() - cached.at < NimManager.STATE_TTL_MS) return cached.state
+
+    const rt = await this.runtimeCmd()
+    const name = this.containerName(model)
+    const status = await this.containerStatus(rt, name)
+    // No container → distinguish "never downloaded" from "downloaded, ready to start";
+    // running → ready vs starting based on the health ping; otherwise exited.
+    let state: NimContainerState
+    if (status === undefined) state = await this.imageExists(rt, model) ? 'stopped' : 'not-pulled'
+    else if (status === 'running') state = await this.pingServer(model) ? 'ready' : 'starting'
+    else state = 'exited'
+    this.stateCache.set(model.key, { state, at: Date.now() })
+    return state
+  }
+
+  /** True when the container is up and its server is answering (chat-safe). */
+  async isReady(model: ManagedModel): Promise<boolean> {
+    return (await this.getContainerState(model)) === 'ready'
+  }
+
+  /** Drops the cached state so the next read reflects an explicit action. */
+  invalidateState(model?: ManagedModel): void {
+    if (model) this.stateCache.delete(model.key)
+    else this.stateCache.clear()
+  }
+
+  /** Short-timeout ping of the container's /v1/models; true if the port answers. */
+  private async pingServer(model: ManagedModel): Promise<boolean> {
+    const port = model.nimPort ?? vscode.workspace.getConfiguration('vidia.nim').get<number>('defaultPort', 8000)
+    const key = (await this.getNvidiaKey()) ?? ''
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), 2_000)
+    try {
+      await fetch(`http://127.0.0.1:${port}/v1/models`, {
+        headers: key ? { Authorization: `Bearer ${key}` } : {},
+        signal: ctl.signal
+      })
+      return true // any HTTP response (even 401/404) proves the server is up
+    } catch { return false } // connection refused / timed out → not serving yet
+    finally { clearTimeout(timer) }
+  }
+
+  /** `docker ps -a` status line → 'running' | 'exited' | undefined (no container). */
+  private containerStatus(rt: string, name: string): Promise<string | undefined> {
+    return new Promise(resolve => {
+      cp.exec(`${rt} ps -a --filter "name=^/${name}$" --format "{{.Status}}"`,
+        { windowsHide: true, timeout: 8_000 }, (err, stdout) => {
+          if (err) return resolve(undefined)
+          const s = stdout.trim()
+          resolve(s ? (s.startsWith('Up') ? 'running' : 'exited') : undefined)
+        })
+    })
+  }
+
+  /** True when the model's image is already pulled locally. */
+  private imageExists(rt: string, model: ManagedModel): Promise<boolean> {
+    const image = model.nimImage ?? `nvcr.io/nim/${model.modelId}:latest`
+    return new Promise(resolve => {
+      cp.exec(`${rt} image inspect "${image}"`, { windowsHide: true, timeout: 15_000 },
+        err => resolve(!err))
+    })
+  }
+
+  /**
+   * Chat hook: ensures a NIM model's container is ready before a request is
+   * sent, honoring `vidia.nim.autoStartOnChat`:
+   *   prompt (default) → ask, then start (with progress) if confirmed.
+   *   always           → start without asking.
+   *   never            → just report that the model isn't ready.
+   * Resolves true when the model is safe to chat with; false when the user
+   * declined or the start failed (an error message has already been shown).
+   */
+  async ensureReadyForChat(model: ManagedModel): Promise<boolean> {
+    if (await this.isReady(model)) return true
+    const state = await this.getContainerState(model)
+    const mode = vscode.workspace.getConfiguration('vidia.nim').get<string>('autoStartOnChat', 'prompt')
+    const label = state === 'not-pulled' ? 'Its image has not been downloaded yet.'
+      : state === 'starting' ? 'It is still starting up.'
+        : state === 'exited' ? 'The container has exited.'
+          : 'The container is not running.'
+
+    if (mode === 'never') {
+      vscode.window.showWarningMessage(
+        `${model.modelId} is not ready. ${label} Start it from the Models Explorer, then retry.`)
+      return false
+    }
+    if (mode === 'prompt') {
+      const choice = await vscode.window.showInformationMessage(
+        `${model.modelId} is not ready. ${label} Start the NIM container now?`,
+        'Start Now', 'Cancel')
+      if (choice !== 'Start Now') return false
+    }
+    await this.startWithProgress(model)
+    // startWithProgress swallows errors; re-check the real state before chatting.
+    if (await this.isReady(model)) return true
+    vscode.window.showErrorMessage(
+      `${model.modelId} is still not ready after starting. Check "VIDIA: Show NIM Logs".`)
+    return false
+  }
+
   /** Runs the NIM container for a model; resolves with the server URL once healthy. */
   async run(model: ManagedModel, token?: vscode.CancellationToken): Promise<string> {
     const remoteHost = vscode.workspace.getConfiguration('vidia.nim').get<string>('remoteHost', '')
@@ -192,7 +319,7 @@ export class NimManager implements vscode.Disposable {
       await fs.promises.rm(envFile, { force: true })
     }
     await this.waitForHealthy(port, token)
-    return `http://localhost:${port}/v1`
+    return `http://127.0.0.1:${port}/v1`
   }
 
   /**

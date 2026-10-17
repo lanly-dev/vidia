@@ -44,7 +44,7 @@ export default class Server {
 
   /** Register the chat harness (provider + @vidia participant). */
   registerChatHarness(): Disposable[] {
-    const provider = new VidiaLmProvider(this.manager, this.client, this.manager.onDidChange)
+    const provider = new VidiaLmProvider(this.manager, this.client, this.nim, this.manager.onDidChange)
     return [provider.register(), registerChatParticipant('vidia')]
   }
 

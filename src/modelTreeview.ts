@@ -11,6 +11,12 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
   private static instance?: ModelsTreeProvider
   private readonly _onDidChangeTreeData = new vscode.EventEmitter<VidiaItem | undefined>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
+  /** Poll that flips `starting` containers to Ready in the tree; see startAutoRefresh. */
+  private autoRefresh?: ReturnType<typeof setInterval>
+  /** Window-focus listener that refreshes state when the user looks back. */
+  private focusSubscription?: vscode.Disposable
+  /** True while some NIM container is still `starting`; the poll idles otherwise. */
+  private transient = false
 
   /** Singleton factory (audio-lab style). */
   static async createOrGet(mm: ModelManager, nm: NimManager, sm: SecretManager): Promise<ModelsTreeProvider> {
@@ -24,6 +30,7 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
     private readonly secretManager: SecretManager
   ) {
     refreshEvents.onDidRequestRefresh(() => this.refresh())
+    this.startAutoRefresh()
   }
 
   refresh(): void { this._onDidChangeTreeData.fire(undefined) }
@@ -31,8 +38,30 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
   /** Refreshes the server/model status section of the tree. */
   refreshStatus(): void { this.refresh() }
 
-  /** Releases the tree-data change emitter (runs on extension deactivation). */
-  dispose(): void { this._onDidChangeTreeData.dispose() }
+  /**
+   * Keeps container states honest without manual refreshes:
+   *  - a slow poll (every 5s) that only re-probes while some NIM model is still
+   *    `starting` (so a container flipping to Ready updates the row on its own,
+   *    without churning `docker ps` when nothing is warming up);
+   *  - a refresh whenever the window regains focus (the user is likely looking).
+   */
+  private startAutoRefresh(): void {
+    this.autoRefresh = setInterval(() => {
+      if (!this.transient) return
+      this.nimManager.invalidateState()
+      this.refresh()
+    }, 5_000)
+    this.focusSubscription = vscode.window.onDidChangeWindowState(e => {
+      if (e.focused) { this.nimManager.invalidateState(); this.refresh() }
+    })
+  }
+
+  /** Releases the tree-data change emitter and the auto-refresh timer. */
+  dispose(): void {
+    if (this.autoRefresh) clearInterval(this.autoRefresh)
+    this.focusSubscription?.dispose()
+    this._onDidChangeTreeData.dispose()
+  }
 
   private get selectedModelKey(): string | undefined {
     return vscode.workspace.getConfiguration('vidia').get<string>('chatModel', '')
@@ -47,6 +76,9 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
     if (!element) {
       if (!await this.secretManager.getNvidiaKey()) return []
       const setup = this.secretManager.getSetupState()
+      // A full refresh starts here, so clear the "something is starting" flag;
+      // the model rows below re-set it if a container is still warming up.
+      this.transient = false
       // Legacy keys (stored before the setup check existed) are treated as
       // cloud-OK; ensureSetupState backfills the real verdict in the background.
       const cloudOk = setup?.cloudOk ?? true
@@ -76,9 +108,10 @@ export default class ModelsTreeProvider implements vscode.TreeDataProvider<Vidia
     }
     const items: VidiaItem[] = []
     for (const m of models) {
-      const running = element.source === 'nim' ? await this.nimManager.isRunning(m) : false
+      const nimState = element.source === 'nim' ? await this.nimManager.getContainerState(m) : undefined
+      if (nimState === 'starting') this.transient = true
       items.push(new VidiaItem('model', m.name, vscode.TreeItemCollapsibleState.None,
-        { model: m, source: m.source, running, probe: this.modelManager.getProbe(m.key) }))
+        { model: m, source: m.source, nimState, probe: this.modelManager.getProbe(m.key) }))
     }
     return items
   }
