@@ -224,12 +224,12 @@
         },
         {
           "command": "vidia.ncp.startNimItem",
-          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(not-pulled|stopped|exited):/",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(not-pulled|stopped|exited|stalled):/",
           "group": "2_nim@1"
         },
         {
           "command": "vidia.ncp.stopNimItem",
-          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(ready|starting):/",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(ready|starting|stalled):/",
           "group": "2_nim@2"
         },
         {
@@ -239,12 +239,12 @@
         },
         {
           "command": "vidia.ncp.startNimItem",
-          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(not-pulled|stopped|exited):/",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(not-pulled|stopped|exited|stalled):/",
           "group": "inline@2"
         },
         {
           "command": "vidia.ncp.stopNimItem",
-          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(ready|starting):/",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(ready|starting|stalled):/",
           "group": "inline@2"
         },
         {

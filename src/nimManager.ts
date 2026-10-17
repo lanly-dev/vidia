@@ -21,6 +21,18 @@ export class NimManager implements vscode.Disposable {
   private readonly stateCache = new Map<string, { state: NimContainerState, at: number }>()
   /** How long a probed container state stays valid (ms). */
   private static readonly STATE_TTL_MS = 4_000
+  /**
+   * How long a container may sit `starting` (Up but not serving) before the
+   * tree stops claiming it's warming up and calls it `stalled`. Without this
+   * the row says "Starting…" forever when the server never binds the port.
+   * Kept generous and in line with waitForHealthy's timeout: a first run can
+   * spend a long while downloading weights and building the TensorRT engine,
+   * and a false "stalled" is expensive — stop/restart wipes the in-progress
+   * work since containers run with --rm and no cache volume.
+   */
+  private static readonly STARTING_TIMEOUT_MS = 20 * 60_000
+  /** Wall-clock time each model was first observed `starting` (keyed by model key). */
+  private readonly startingSince = new Map<string, number>()
 
   /** User flow: start the container for the selected NIM model with progress UI. */
   async startWithProgress(arg?: ModelArgument): Promise<void> {
@@ -159,6 +171,8 @@ export class NimManager implements vscode.Disposable {
    *   starting   → container `docker ps`-running but the HTTP server isn't up yet.
    *   ready      → server answers on the published port (chat will work).
    *   exited     → container exists but has exited (crash / manual stop).
+   *   stalled    → Up for longer than STARTING_TIMEOUT_MS without serving;
+   *                the server likely crashed on startup (see the logs).
    *
    * Cached briefly (STATE_TTL_MS) so periodic tree refreshes don't spawn a
    * `docker ps` per row per keystroke. A running container is confirmed with a
@@ -181,6 +195,13 @@ export class NimManager implements vscode.Disposable {
     if (status === undefined) state = await this.imageExists(rt, model) ? 'stopped' : 'not-pulled'
     else if (status === 'running') state = await this.pingServer(model) ? 'ready' : 'starting'
     else state = 'exited'
+    // A container that stays Up-but-not-serving past the timeout isn't
+    // "starting" anymore — say so instead of spinning forever.
+    if (state === 'starting') {
+      const since = this.startingSince.get(model.key) ?? Date.now()
+      this.startingSince.set(model.key, since)
+      if (Date.now() - since > NimManager.STARTING_TIMEOUT_MS) state = 'stalled'
+    } else this.startingSince.delete(model.key)
     this.stateCache.set(model.key, { state, at: Date.now() })
     return state
   }
@@ -192,8 +213,11 @@ export class NimManager implements vscode.Disposable {
 
   /** Drops the cached state so the next read reflects an explicit action. */
   invalidateState(model?: ManagedModel): void {
-    if (model) this.stateCache.delete(model.key)
-    else this.stateCache.clear()
+    if (model) {
+      // An explicit start/stop also restarts the "stuck in starting" clock.
+      this.stateCache.delete(model.key)
+      this.startingSince.delete(model.key)
+    } else this.stateCache.clear()
   }
 
   /** Short-timeout ping of the container's /v1/models; true if the port answers. */
@@ -251,8 +275,9 @@ export class NimManager implements vscode.Disposable {
     const mode = vscode.workspace.getConfiguration('vidia.nim').get<string>('autoStartOnChat', 'prompt')
     const label = state === 'not-pulled' ? 'Its image has not been downloaded yet.'
       : state === 'starting' ? 'It is still starting up.'
-        : state === 'exited' ? 'The container has exited.'
-          : 'The container is not running.'
+        : state === 'stalled' ? 'It stalled during startup — check the logs.'
+          : state === 'exited' ? 'The container has exited.'
+            : 'The container is not running.'
 
     if (mode === 'never') {
       vscode.window.showWarningMessage(

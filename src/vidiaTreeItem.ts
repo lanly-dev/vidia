@@ -148,6 +148,8 @@ export class VidiaItem {
         return new vscode.ThemeIcon('loading~spin')
       case 'exited':
         return new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.orange'))
+      case 'stalled':
+        return new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.orange'))
       case 'not-pulled':
         return new vscode.ThemeIcon('cloud-download', new vscode.ThemeColor('charts.orange'))
       case 'stopped':
