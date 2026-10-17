@@ -6,6 +6,33 @@ export type ModelSource = 'cloud' | 'nim'
 /** Health state of a managed model, derived from probing the endpoint. */
 export type ModelStatus = 'untested' | 'active' | 'disabled'
 
+/**
+ * Lifecycle of the local NIM container backing a managed model. This is a
+ * separate axis from {@link ModelStatus}: a model can be *valid* (probed OK)
+ * while its container is still pulling or loading weights. `undefined` in
+ * place of this type means "unknown / not applicable" (e.g. a remote NIM host
+ * that the extension cannot inspect locally).
+ */
+export type NimContainerState = 'not-pulled' | 'stopped' | 'starting' | 'ready' | 'exited'
+
+/** Human-readable label for each container state (shown in the tree row). */
+export const NIM_STATE_LABELS: Record<NimContainerState, string> = {
+  'not-pulled': 'Not downloaded',
+  stopped: 'Stopped',
+  starting: 'Starting…',
+  ready: 'Ready',
+  exited: 'Exited'
+}
+
+/** One-line hint per state, appended to the row tooltip. */
+export const NIM_STATE_HINTS: Record<NimContainerState, string> = {
+  'not-pulled': 'Image not downloaded yet — the first start pulls it (can take a while).',
+  stopped: 'Container is not running. Start it from the context menu, or just chat with it.',
+  starting: 'Container is up but the model is still loading. Chat works once it shows Ready.',
+  ready: 'Container is up and serving requests.',
+  exited: 'Container exited. Check logs, then start it again.'
+}
+
 /** One probe record per managed model; overwritten on every verification. */
 export interface ModelProbe {
 	testedAt: number

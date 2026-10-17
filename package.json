@@ -224,18 +224,28 @@
         },
         {
           "command": "vidia.ncp.startNimItem",
-          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(not-pulled|stopped|exited):/",
           "group": "2_nim@1"
         },
         {
           "command": "vidia.ncp.stopNimItem",
-          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(ready|starting):/",
           "group": "2_nim@2"
         },
         {
           "command": "vidia.ncp.showNimLogsItem",
           "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim/",
           "group": "2_nim@3"
+        },
+        {
+          "command": "vidia.ncp.startNimItem",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(not-pulled|stopped|exited):/",
+          "group": "inline@2"
+        },
+        {
+          "command": "vidia.ncp.stopNimItem",
+          "when": "view == vidia.modelsExplorer && viewItem =~ /^model:nim:(ready|starting):/",
+          "group": "inline@2"
         },
         {
           "command": "vidia.ncp.removeModelItem",
@@ -306,6 +316,16 @@
           "type": "string",
           "default": "",
           "description": "Optional remote NIM host (host:port). When set, NIM models run there instead of local containers."
+        },
+        "vidia.nim.autoStartOnChat": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "default": "prompt",
+          "description": "When you chat with a NIM model whose container isn't ready: prompt to start it, start it automatically, or do nothing and report an error."
         }
       }
     }
